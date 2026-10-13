@@ -1,0 +1,246 @@
+<!doctype html><html lang="de"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Post Selector</title>
+<style>
+:root{--bg:#0c0c0f;--panel:#16161b;--panel2:#1d1d24;--line:#2a2a33;--fg:#ececf1;--mute:#8d8d9a;--acc:#fe2c55;--acc2:#25f4ee;--ok:#2ea043}
+*{box-sizing:border-box}
+body{font:14px/1.4 -apple-system,system-ui,sans-serif;background:var(--bg);color:var(--fg);margin:0}
+a{color:inherit}
+.top{position:sticky;top:0;z-index:20;background:rgba(12,12,15,.85);backdrop-filter:blur(12px);border-bottom:1px solid var(--line)}
+.nav{display:flex;align-items:center;gap:18px;padding:12px 20px}
+.logo{font-weight:800;font-size:17px;letter-spacing:-.3px}.logo span{background:linear-gradient(90deg,var(--acc2),var(--acc));-webkit-background-clip:text;background-clip:text;color:transparent}
+.pages{display:flex;gap:4px;background:var(--panel);padding:4px;border-radius:999px}
+.pages a{padding:6px 14px;border-radius:999px;text-decoration:none;color:var(--mute);font-weight:600}
+.pages a.on{background:var(--fg);color:#000}
+#info{margin-left:auto;color:var(--mute);font-size:13px}
+.filters{display:flex;flex-wrap:wrap;gap:10px;align-items:center;padding:0 20px 12px}
+.ctl{display:flex;align-items:center;gap:6px;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:4px 6px 4px 10px}
+.ctl label{color:var(--mute);font-size:12px}
+.ctl input{width:58px;background:var(--panel2);border:1px solid var(--line);color:var(--fg);border-radius:7px;padding:5px 6px;font:inherit;text-align:center}
+.seg{display:flex;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:3px}
+.seg button{border:0;background:none;color:var(--mute);padding:6px 12px;border-radius:7px;font:inherit;font-weight:600;cursor:pointer}
+.seg button.on{background:var(--acc);color:#fff}
+.chips{display:flex;gap:4px}.chips button{border:1px solid var(--line);background:var(--panel2);color:var(--mute);border-radius:999px;padding:3px 9px;font:inherit;font-size:12px;cursor:pointer}
+.chips button.on{border-color:var(--acc2);color:var(--acc2)}
+.btn{background:var(--panel);border:1px solid var(--line);color:var(--fg);border-radius:10px;padding:7px 12px;font:inherit;font-weight:600;cursor:pointer}
+.btn:hover{border-color:#444}
+.ms{position:relative}
+.ms>summary{list-style:none;cursor:pointer;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:7px 12px;user-select:none;font-weight:600}
+.ms>summary::-webkit-details-marker{display:none}
+.ms>summary::after{content:" ▾";color:var(--mute)}
+.ms .pan{position:absolute;z-index:30;top:calc(100% + 6px);left:0;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:8px;min-width:250px;max-height:60vh;overflow:auto;box-shadow:0 12px 40px rgba(0,0,0,.6)}
+.ms label{display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:7px;cursor:pointer}
+.ms label:hover{background:var(--panel2)}
+.ms label span{margin-left:auto;color:var(--mute);font-size:12px}
+.ms .row{display:flex;gap:6px;margin-bottom:6px}.ms .row button{flex:1}
+main{padding:8px 20px 40px}
+.group{margin:18px 0 26px}
+.gh{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+.av{width:30px;height:30px;border-radius:50%;display:grid;place-items:center;font-weight:800;color:#000;background:linear-gradient(135deg,var(--acc2),var(--acc))}
+.gh b{font-size:16px}.gh a.ch{text-decoration:none;cursor:pointer}.gh a.ch:hover b{color:var(--acc2)}
+.pin{background:none;border:0;cursor:pointer;font-size:15px;opacity:.3;filter:grayscale(1);padding:2px 4px}.pin.on{opacity:1;filter:none}
+.chhead{display:flex;align-items:center;gap:12px;margin:14px 0 4px}.chhead h2{margin:0;font-size:22px}
+select.sel{background:var(--panel);border:1px solid var(--line);color:var(--fg);border-radius:10px;padding:7px 10px;font:inherit;font-weight:600}.gh small{color:var(--mute)}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:14px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;overflow:hidden;display:flex;flex-direction:column;transition:transform .12s,border-color .12s}
+.card:hover{transform:translateY(-2px);border-color:#3a3a46}
+.card.fresh{border-color:#e5c100;box-shadow:0 0 0 1px #e5c100}
+.thumb{position:relative;aspect-ratio:16/9;background:#000;display:block}
+.thumb img{width:100%;height:100%;object-fit:cover;display:block}
+.pill{position:absolute;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:700;background:rgba(0,0,0,.75)}
+.st{left:8px;top:8px}.dur{right:8px;bottom:8px}.rank{left:8px;bottom:8px;background:var(--acc)}
+.parts{right:8px;top:8px;background:#6e40c9}
+.st.ready{background:#6e40c9}.st.pending_review{background:#9e6a03}.st.failed{background:#da3633}.st.exporting{background:var(--ok)}
+.body{padding:10px 12px 12px;display:flex;flex-direction:column;gap:6px;flex:1}
+.t{font-weight:650;line-height:1.3;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.meta{color:var(--mute);font-size:12px}
+.err{color:#f85149;font-size:12px}
+.act{display:flex;gap:6px;margin-top:auto}
+.act a,.act button{flex:1;text-align:center;text-decoration:none;padding:8px;border-radius:9px;font:inherit;font-weight:700;cursor:pointer;border:0}
+.edit{background:var(--acc);color:#fff}
+.ign{background:var(--panel2);color:var(--fg);border:1px solid var(--line)!important}
+.cd{color:var(--mute);font-size:12px;font-variant-numeric:tabular-nums}
+.empty{color:var(--mute);padding:40px 0;text-align:center}
+@media (max-width:600px){.nav,.filters,main{padding-left:12px;padding-right:12px}.grid{grid-template-columns:1fr}}
+</style>
+
+<div class="top">
+  <div class="nav">
+    <div class="logo">Cut<span>ForTiktok</span></div>
+    <nav class="pages"><a href="/foryou">For You</a><a href="/edit">Edit</a><a href="/scheduler">Scheduler</a><a href="/" class="on">Post Selector</a></nav><a href="/pair" title="iPhone-App verbinden" style="text-decoration:none">📱</a>
+    <span id="info"></span>
+  </div>
+  <div class="filters">
+    <details class="ms" id="whoBox"><summary id="whoSum">Alle Streamer</summary>
+      <div class="pan"><div class="row"><button class="btn" id="whoAll">Alle</button><button class="btn" id="whoNone">Keine</button></div><div id="whoList"></div></div>
+    </details>
+    <div class="seg" id="mode"><button data-m="new">Neueste</button><button data-m="top">Top</button></div>
+    <select class="sel" id="order" title="Reihenfolge der Kanäle"><option value="recent">Kanäle: neueste zuerst</option>
+      <option value="used">Kanäle: meist genutzt</option><option value="top">Kanäle: Top-Clips</option></select>
+    <div class="ctl"><label for="n">pro Kanal</label><input id="n" type="number" min="1" max="100"></div>
+    <div class="ctl" id="tBox"><label for="t">aus den letzten</label><input id="t" type="number" min="1"><label>Min</label>
+      <div class="chips" id="tChips"><button data-t="15">15</button><button data-t="60">1h</button><button data-t="180">3h</button><button data-t="360">6h</button><button data-t="1440">24h</button></div></div>
+    <button class="btn" id="sync" title="Twitch jetzt abfragen">↻ Aktualisieren</button><span class="cd" id="cd"></span>
+  </div>
+</div>
+<main id="main"></main>
+
+<script>
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const LABEL = { new: 'neu', pending_review: 'bearbeitet', failed: 'Fehler' };
+let clips = [], seen = null, fresh = new Set(), prefetching = null, rendering = new Set();
+let streamers = [], hidden = new Set(), nextSync = 0, pins = [], used = {};
+// channel view: #@login shows only that channel's clips (all of them)
+const channel = () => decodeURIComponent(location.hash.startsWith('#@') ? location.hash.slice(2) : '') || null;
+window.addEventListener('hashchange', () => { scrollTo(0, 0); draw(); });
+
+// filters survive reloads
+const PREF = 'selectorFilters';
+let F = { mode: 'new', n: 5, t: 60, order: 'recent' };
+try { const p = JSON.parse(localStorage.getItem(PREF) || '{}'); F = { ...F, ...p }; hidden = new Set(p.hidden || []); } catch {}
+function savePrefs() { try { localStorage.setItem(PREF, JSON.stringify({ ...F, hidden: [...hidden] })); } catch {} }
+
+
+// ---------- streamer multiselect (stores the unchecked ones, so new streamers show up by default) ----------
+function drawWho() {
+  const counts = {};
+  clips.forEach(c => counts[c.streamer] = (counts[c.streamer] || 0) + 1);
+  const on = streamers.filter(s => !hidden.has(s));
+  $('whoSum').textContent = on.length === streamers.length ? 'Alle Streamer' : on.length === 0 ? 'Keine Streamer'
+    : on.length <= 2 ? on.map(s => '@' + s).join(', ') : `${on.length} von ${streamers.length} Streamern`;
+  if (!$('whoBox').open) return;
+  $('whoList').innerHTML = streamers.map(s => `<label><input type="checkbox" value="${esc(s)}" ${hidden.has(s) ? '' : 'checked'}>@${esc(s)}<span>${counts[s] || 0}</span></label>`).join('');
+}
+const changed = () => { savePrefs(); draw(); };
+$('whoList').addEventListener('change', e => {
+  if (e.target.type !== 'checkbox') return;
+  e.target.checked ? hidden.delete(e.target.value) : hidden.add(e.target.value);
+  changed();
+});
+$('whoBox').addEventListener('toggle', drawWho);
+$('whoAll').onclick = () => { hidden.clear(); changed(); drawWho(); };
+$('whoNone').onclick = () => { hidden = new Set(streamers); changed(); drawWho(); };
+document.addEventListener('click', e => { if ($('whoBox').open && !$('whoBox').contains(e.target)) $('whoBox').open = false; });
+
+// ---------- mode / n / t ----------
+function drawFilters() {
+  document.querySelectorAll('#mode button').forEach(b => b.classList.toggle('on', b.dataset.m === F.mode));
+  $('tBox').hidden = F.mode !== 'top';
+  $('tBox').style.display = F.mode === 'top' ? '' : 'none';
+  $('n').value = F.n; $('t').value = F.t; $('order').value = F.order;
+  document.querySelectorAll('#tChips button').forEach(b => b.classList.toggle('on', +b.dataset.t === +F.t));
+}
+document.querySelectorAll('#mode button').forEach(b => b.onclick = () => { F.mode = b.dataset.m; drawFilters(); changed(); });
+document.querySelectorAll('#tChips button').forEach(b => b.onclick = () => { F.t = +b.dataset.t; drawFilters(); changed(); });
+$('order').onchange = () => { F.order = $('order').value; changed(); };
+$('n').oninput = () => { if (+$('n').value > 0) { F.n = +$('n').value; changed(); } };
+$('t').oninput = () => { if (+$('t').value > 0) { F.t = +$('t').value; drawFilters(); changed(); } };
+
+function ago(iso) {
+  const m = (Date.now() - new Date(iso)) / 60000;
+  if (m < 60) return Math.round(m) + ' min';
+  if (m < 1440) return Math.round(m / 60) + ' h';
+  return new Date(iso).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' }) + ' ' + new Date(iso).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+}
+
+async function load() {
+  const j = await (await fetch('/api/clips')).json();
+  if (seen) j.clips.forEach(c => { if (!seen.has(c.id)) fresh.add(c.id); });
+  seen = new Set(j.clips.map(c => c.id));
+  clips = j.clips;
+  prefetching = j.prefetch?.current;
+  rendering = new Set(j.rendering || []);
+  streamers = j.streamers;
+  nextSync = j.next_sync || 0;
+  pins = j.pins || []; used = j.used || {};
+  draw();
+}
+
+// newest n per channel, or top n per channel by views among clips of the last t minutes
+function groups() {
+  const since = Date.now() - F.t * 60000;
+  const by = {};
+  const ch = channel();
+  for (const c of clips) {
+    if (ch ? c.streamer !== ch : hidden.has(c.streamer)) continue;
+    if (rendering.has(c.id)) continue;
+    if (!ch && F.mode === 'top' && new Date(c.created_at).getTime() < since) continue;
+    (by[c.streamer] ||= []).push(c);
+  }
+  return Object.entries(by).map(([s, list]) => {
+    list.sort(F.mode === 'top' ? (a, b) => b.views - a.views : (a, b) => new Date(b.created_at) - new Date(a.created_at));
+    return { streamer: s, list: ch ? list : list.slice(0, F.n), total: list.length };
+  }).sort((a, b) => (pins.includes(b.streamer) - pins.includes(a.streamer)) || ORDER[F.order](a, b));
+}
+
+const maxViews = g => Math.max(...g.list.map(c => c.views));
+const ORDER = {  // channel order (pinned channels always first)
+  recent: (a, b) => F.mode === 'top' ? b.list[0].views - a.list[0].views : new Date(b.list[0].created_at) - new Date(a.list[0].created_at),
+  used: (a, b) => (used[b.streamer] || 0) - (used[a.streamer] || 0) || maxViews(b) - maxViews(a),
+  top: (a, b) => maxViews(b) - maxViews(a),
+};
+async function togglePin(s) {
+  pins = pins.includes(s) ? pins.filter(x => x !== s) : [...pins, s];
+  draw();
+  await fetch('/api/pins', { method: 'POST', body: JSON.stringify({ pins }) });
+}
+
+function card(c, rank) {
+  const st = c.status === 'new' && c.ready ? 'ready' : c.status;
+  const label = c.status === 'new' && c.ready ? 'bereit ⚡' : LABEL[c.status] || c.status;
+  return `<div class="card ${fresh.has(c.id) ? 'fresh' : ''}" id="c-${c.id}">
+    <a class="thumb" href="/edit/${c.id}">${c.thumbnail ? `<img loading="lazy" src="${esc(c.thumbnail)}">` : ''}
+      <span class="pill st ${st}">${label}</span>
+      ${c.parts > 1 ? `<span class="pill parts" title="Überlappende Clips zu einem zusammengefügt">🔗 ${c.parts} Clips</span>` : ''}
+      ${F.mode === 'top' ? `<span class="pill rank">#${rank}</span>` : ''}
+      <span class="pill dur">${Math.round(c.duration || 0)}s</span></a>
+    <div class="body"><div class="t">${esc(c.title)}</div>
+      <div class="meta">${c.views} Views · ${ago(c.created_at)}</div>
+      ${c.error ? `<div class="err">${esc(c.error)}</div>` : ''}
+      <div class="act"><a class="edit" href="/edit/${c.id}">Bearbeiten</a><button class="ign" onclick="ignore('${c.id}')">Ignorieren</button></div>
+    </div></div>`;
+}
+
+function draw() {
+  drawWho();
+  const gs = groups();
+  // round robin over channels: "next clip" in the editor follows the top of every channel first
+  const order = [];
+  const ch = channel();
+  for (let i = 0; i < (ch ? Infinity : F.n) && gs.some(g => g.list[i]); i++) for (const g of gs) if (g.list[i]) order.push(g.list[i]);
+  const n = order.length;
+  $('info').textContent = `${n} Clips aus ${gs.length} Kanälen` + (fresh.size ? ` · ${fresh.size} neu` : '')
+    + (rendering.size ? ` · ${rendering.size} exportiert gerade` : '')
+    + (prefetching ? ' · bereite vor: ' + (clips.find(c => c.id === prefetching)?.title || '…') : '');
+  try { localStorage.setItem('clipOrder', JSON.stringify(order.map(c => c.id))); } catch {}
+  const pinBtn = s => `<button class="pin ${pins.includes(s) ? 'on' : ''}" title="Kanal oben anheften" onclick="togglePin('${esc(s)}')">📌</button>`;
+  const head = ch ? `<div class="chhead"><a class="btn" href="#" style="text-decoration:none">← Alle Kanäle</a>
+      <div class="av">${esc(ch[0].toUpperCase())}</div><h2>@${esc(ch)}</h2>${pinBtn(ch)}
+      <small style="color:var(--mute)">${used[ch] || 0}× genutzt · <a href="https://twitch.tv/${esc(ch)}" target="_blank" style="color:var(--mute)">twitch.tv/${esc(ch)}</a></small></div>` : '';
+  $('main').innerHTML = head + gs.map(g => `<section class="group">
+      <div class="gh">${ch ? '' : `<a class="ch" href="#@${esc(g.streamer)}" style="display:flex;align-items:center;gap:10px" title="Nur Clips von @${esc(g.streamer)}">
+        <div class="av">${esc(g.streamer[0].toUpperCase())}</div><b>@${esc(g.streamer)}</b></a>${pinBtn(g.streamer)}`}
+        <small>${ch ? `${g.total} Clips` : F.mode === 'top' ? `Top ${g.list.length} von ${g.total} der letzten ${F.t} Min` : `${g.list.length} neueste von ${g.total}`}${!ch && used[g.streamer] ? ` · ${used[g.streamer]}× genutzt` : ''}</small></div>
+      <div class="grid">${g.list.map((c, i) => card(c, i + 1)).join('')}</div></section>`).join('')
+    || `<div class="empty">${F.mode === 'top' ? `Keine Clips in den letzten ${F.t} Minuten.` : 'Keine Clips. Der Listener lädt beim Start alle Clips seit dem eingestellten Datum, das kann kurz dauern.'}</div>`;
+}
+
+async function ignore(id) {
+  const r = await fetch(`/api/clip/${id}/status`, { method: 'POST', body: JSON.stringify({ status: 'ignored' }) });
+  if (r.ok) { clips = clips.filter(c => c.id !== id); fresh.delete(id); draw(); }
+}
+
+$('sync').onclick = async () => {
+  $('sync').disabled = true; $('sync').textContent = '↻ Lädt…';
+  try { await fetch('/api/sync', { method: 'POST', body: '{}' }); await load(); }
+  finally { $('sync').disabled = false; $('sync').textContent = '↻ Aktualisieren'; }
+};
+// countdown to the listener's next automatic scan
+setInterval(() => {
+  const s = Math.round(nextSync - Date.now() / 1000);
+  $('cd').textContent = !nextSync ? '' : s > 0 ? `nächster Scan in ${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}` : 'Scan läuft…';
+}, 1000);
+drawFilters();
+load();
+setInterval(() => { if (!document.hidden) load(); }, 15000);  // live: listener adds clips in background
+</script>

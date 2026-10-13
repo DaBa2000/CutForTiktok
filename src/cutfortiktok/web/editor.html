@@ -1,0 +1,655 @@
+<!doctype html><html lang="de"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Clip Editor</title>
+<style>
+@font-face{font-family:"Montserrat Black";src:url(/fonts/Montserrat-Black.ttf)}
+#prep{position:fixed;inset:0;background:rgba(0,0,0,.85);display:flex;align-items:center;justify-content:center;flex-direction:column;gap:12px;font-size:16px;z-index:10}
+#prep[hidden]{display:none}
+.spin{width:36px;height:36px;border:4px solid #444;border-top-color:#1f6feb;border-radius:50%;animation:sp 1s linear infinite}
+@keyframes sp{to{transform:rotate(360deg)}}
+:root{--bg:#111;--panel:#1b1b1b;--line:#2c2c2c;--fg:#eee;--mute:#999;--acc:#2ea043;--cam:#39d353}
+*{box-sizing:border-box}
+body{font:14px system-ui;background:var(--bg);color:var(--fg);margin:0;padding:16px}
+a{color:#58a6ff;text-decoration:none}
+h2{margin:4px 0 12px;font-size:18px}
+.wrap{display:grid;grid-template-columns:minmax(380px,1fr) 360px minmax(320px,1fr);gap:16px;align-items:start}
+@media(max-width:1200px){.wrap{grid-template-columns:1fr}}
+.panel{background:var(--panel);border-radius:10px;padding:12px}
+.panel h3{margin:0 0 10px;font-size:14px;color:var(--mute);font-weight:600;text-transform:uppercase;letter-spacing:.04em}
+#stage{position:relative;line-height:0;user-select:none}
+#src{width:100%;border-radius:6px;background:#000}
+#cam{position:absolute;border:3px solid var(--cam);box-shadow:0 0 0 9999px rgba(0,0,0,.35);cursor:move}
+#cam .h{position:absolute;right:-8px;bottom:-8px;width:16px;height:16px;background:var(--cam);border-radius:3px;cursor:nwse-resize}
+#cam span{position:absolute;left:4px;top:4px;font:600 11px system-ui;color:#000;background:var(--cam);padding:1px 4px;border-radius:3px;line-height:1.4}
+#game{position:absolute;top:0;bottom:0;border-left:2px dashed #58a6ff;border-right:2px dashed #58a6ff;pointer-events:none}
+.row{display:flex;gap:8px;align-items:center;margin:8px 0;flex-wrap:wrap}
+label{color:var(--mute)}
+input[type=number]{width:80px}
+input,textarea,button{font:inherit}
+input[type=number],input[type=text],textarea{background:#0d0d0d;color:var(--fg);border:1px solid var(--line);border-radius:5px;padding:5px 7px}
+button{background:#2a2a2a;color:var(--fg);border:1px solid #3a3a3a;border-radius:6px;padding:6px 10px;cursor:pointer}
+button:hover{background:#333}
+button.ok{background:var(--acc);border-color:var(--acc);color:#fff;font-weight:600}
+button.no{background:#da3633;border-color:#da3633;color:#fff}
+button.pri{background:#1f6feb;border-color:#1f6feb;color:#fff;font-weight:600}
+button:disabled{opacity:.5;cursor:wait}
+#pv{width:360px;height:640px;background:#000;border-radius:8px;display:block;touch-action:none}
+#subs{max-height:520px;overflow:auto}
+.sub{display:grid;grid-template-columns:62px 62px 1fr 28px;gap:4px;margin-bottom:4px;align-items:center}
+.sub input[type=number]{width:100%;padding:4px}
+.sub input[type=text]{width:100%}
+.sub.cur input[type=text]{border-color:#e5c100}
+.sub button{padding:3px}
+textarea{width:100%;height:110px}
+#msg{margin-left:8px;color:var(--mute)}
+#msg.err{color:#f85149}
+#out{width:100%;max-width:360px;border-radius:8px;background:#000;margin-top:8px}
+.badge{padding:2px 8px;border-radius:10px;font-size:12px;background:#333;margin-left:8px}
+.hint{color:var(--mute);font-size:12px}
+.pp{display:flex;gap:8px;align-items:center;padding:6px;border-radius:7px;background:#151515;margin-bottom:5px}
+.pp img{width:64px;height:36px;object-fit:cover;border-radius:4px;background:#000;flex:none}
+.pp .i{flex:1;min-width:0}.pp .i div{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pp.here{outline:1px solid #25f4ee}
+.sw{display:flex;gap:8px;align-items:center;margin-bottom:4px}
+.sw .tm{font-variant-numeric:tabular-nums;color:#25f4ee;cursor:pointer;min-width:46px}
+.sw .x{padding:2px 7px}
+.cut{display:flex;gap:6px;align-items:center;margin-bottom:5px;flex-wrap:wrap}
+.cut input[type=number]{width:76px}
+.cut button{padding:3px 7px}
+</style>
+
+<div id="prep" hidden><div class="spin"></div><div id="prepMsg">Clip wird vorbereitet: Download, Facecam-Erkennung, Transkription…</div><a href="/">← zurück zur Liste</a></div>
+<a href="/">← Alle Clips</a>
+<h2 id="title">…</h2>
+
+<div class="wrap">
+  <div class="panel">
+    <h3>Quelle · Facecam & Schnitt</h3>
+    <div id="stage">
+      <video id="src" controls playsinline preload="auto"></video>
+      <div id="game"></div>
+      <div id="cam"><span>Facecam</span><div class="h"></div></div>
+    </div>
+    <div class="row">
+      <label><input type="checkbox" id="hasCam"> Facecam vorhanden</label>
+      <button id="redetect" title="Facecam in diesem Clip automatisch suchen">Facecam neu erkennen</button>
+      <span class="hint">Position wird beim Speichern für @<span id="who"></span> gemerkt</span>
+    </div>
+    <div class="row">
+      <label for="gx">Spiel-Ausschnitt (horizontal)</label>
+      <input type="range" id="gx" min="0" max="1" step="0.01" style="flex:1">
+    </div>
+    <h3 style="margin-top:14px">Länge</h3>
+    <div class="row">
+      <label>Start</label><input type="number" id="ts" step="0.1" min="0">
+      <button id="setS">= aktuelle Zeit</button>
+      <label>Ende</label><input type="number" id="te" step="0.1" min="0">
+      <button id="setE">= aktuelle Zeit</button>
+    </div>
+    <div class="row"><span class="hint" id="durInfo"></span>
+      <button id="playTrim">▶ Ausschnitt abspielen</button></div>
+    <h3 style="margin-top:14px">Ausschneiden</h3>
+    <div id="cuts"></div>
+    <div class="row"><button id="addCut">+ Bereich ausschneiden</button>
+      <span class="hint">Start und Ende markieren; der Bereich wird aus dem finalen Video entfernt.</span></div>
+    <h3 style="margin-top:14px">Perspektiven · gleiche Szene, andere Streams</h3>
+    <div id="persp" class="hint">Suche…</div>
+    <div class="row"><button id="backMain">↩ ab hier wieder @<span class="who2"></span></button>
+      <span class="hint">Wechsel gelten ab der aktuellen Videozeit</span></div>
+    <div id="switches"></div>
+    <p class="hint">Im Wechsel-Abschnitt laufen Bild, Facecam, Ton und Untertitel des anderen Streams
+      (Untertitel dort automatisch aus dessen Transkript). Die Vorschau zeigt das Bild, Ton erst im Render.</p>
+  </div>
+
+  <div class="panel">
+    <h3>Live-Vorschau</h3>
+    <canvas id="pv" width="360" height="640"></canvas>
+    <div class="row"><span class="hint">Trennlinie ziehen = Facecam größer/kleiner</span>
+      <span id="splitInfo" class="hint"></span><button id="resetSplit">Zurücksetzen</button></div>
+    <p class="hint">Vereinfachte Vorschau. Das finale Video wird mit „Speichern & Rendern“ erzeugt.</p>
+  </div>
+
+  <div class="panel">
+    <h3>Untertitel</h3>
+    <div class="hint" style="margin-bottom:6px">Start · Ende · Text — Klick auf Zeit springt dorthin. Text ändern verteilt das Timing neu.</div>
+    <div id="subs"></div>
+    <div class="row"><button id="addSub">+ Zeile bei aktueller Zeit</button></div>
+    <h3 style="margin-top:14px">Titel-Einblendung (erste Sekunden)</h3>
+    <input type="text" id="otitle" style="width:100%" placeholder="leer = kein Titel">
+    <h3 style="margin-top:14px">Beschreibung (TikTok)</h3>
+    <textarea id="caption"></textarea>
+  </div>
+</div>
+
+<div class="panel" style="margin-top:16px">
+  <div class="row">
+    <button class="pri" id="save">Speichern & Rendern</button>
+    <button class="ok" id="approve">Exportieren & weiter ➜</button>
+    <button class="no" id="reject">Ignorieren</button>
+    <button id="posted">Als gepostet markieren</button>
+    <span id="msg"></span>
+  </div>
+  <h3 style="margin-top:12px">Gerendertes Video</h3>
+  <video id="out" controls playsinline></video>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const id = location.pathname.split('/').pop();
+const src = $('src'), cv = $('pv'), ctx = cv.getContext('2d');
+let S;            // clip state from server
+let R;            // render dims
+let dirty = false;
+
+const fmt = n => (Math.round(n * 10) / 10).toFixed(1);
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+function msg(t, err) { $('msg').textContent = t; $('msg').className = err ? 'err' : ''; }
+function markDirty() { dirty = true; msg('Ungespeicherte Änderungen'); }
+
+async function api(path, body) {
+  const r = await fetch(path, { method: 'POST', body: JSON.stringify(body || {}) });
+  const j = await r.json();
+  if (!r.ok) throw new Error(j.error || r.statusText);
+  return j;
+}
+
+// ---------- load ----------
+async function load() {
+  S = await (await fetch('/api/clip/' + id)).json();
+  if (!S.subs || !S.raw_path) {  // not prepared yet (download + detect + transcribe) or videos dropped after export
+    $('prep').hidden = false;
+    try { await api(`/api/clip/${id}/prepare`); }
+    catch (e) { $('prepMsg').textContent = 'Fehler: ' + e.message; $('prepMsg').style.color = '#f85149'; $('prep').querySelector('.spin').remove(); return; }
+    S = await (await fetch('/api/clip/' + id)).json();
+    $('prep').hidden = true;
+  }
+  R = S.render;
+  S.cam_h = S.cam_h || R.cam_height;
+  $('who').textContent = S.streamer;
+  $('title').innerHTML = `@${S.streamer} — ${S.title.replace(/</g, '&lt;')}<span class="badge">${S.status}</span>`;
+  src.src = '/raw/' + id;
+  $('out').src = '/video/' + id + '?t=' + Date.now();
+  S.subs = S.subs || [];
+  S.cuts = S.cuts ? JSON.parse(S.cuts) : [];
+  S.game_x = S.game_x ?? 0.5;
+  $('hasCam').checked = !!S.cam;
+  $('gx').value = S.game_x;
+  $('caption').value = S.caption || '';
+  $('otitle').value = S.overlay_title ?? S.title;
+  lastTitle = $('otitle').value.trim() || null;
+  src.addEventListener('loadedmetadata', () => {
+    if (S.trim_end == null) S.trim_end = src.duration;
+    $('ts').value = fmt(S.trim_start || 0); $('te').value = fmt(S.trim_end);
+    $('ts').max = $('te').max = src.duration.toFixed(2);
+    src.currentTime = S.trim_start || 0;
+    if (!S.cam) S._lastCam = defaultCam();
+    layoutBoxes(); updDur(); updSplit();
+  }, { once: true });
+  renderSubs();
+  drawCuts();
+  document.querySelectorAll('.who2').forEach(e => e.textContent = S.streamer);
+  S.switches = (S.switches ? JSON.parse(S.switches) : []);
+  loadPersp();
+}
+
+// ---------- facecam box (normalized coords, aspect locked to output cam area) ----------
+const CH = () => S.cam_h || R.cam_height;             // facecam area height in output px
+const camAspect = () => R.width / CH();
+const subsY = () => Math.min(Math.max(R.subs_y, CH() + 170), R.height - 300);  // mirrors effective_render()
+const vAR = () => (src.videoWidth || 16) / (src.videoHeight || 9);
+function defaultCam() { const w = 0.3; return [0.7 - 0.02, 0.02, w, w * vAR() / camAspect()]; }
+
+function layoutBoxes() {
+  const box = $('cam'), W = src.clientWidth, H = src.clientHeight;
+  box.style.display = S.cam ? 'block' : 'none';
+  if (S.cam) {
+    const [x, y, w, h] = S.cam;
+    Object.assign(box.style, { left: x * W + 'px', top: y * H + 'px', width: w * W + 'px', height: h * H + 'px' });
+  }
+  const g = gameWin();
+  Object.assign($('game').style, { left: g.x / src.videoWidth * W + 'px', width: g.w / src.videoWidth * W + 'px' });
+}
+new ResizeObserver(layoutBoxes).observe(src);
+
+let drag = null;
+$('cam').addEventListener('pointerdown', e => {
+  e.preventDefault();
+  drag = { mode: e.target.classList.contains('h') ? 'resize' : 'move', x: e.clientX, y: e.clientY, cam: [...S.cam] };
+  $('cam').setPointerCapture(e.pointerId);
+});
+$('cam').addEventListener('pointermove', e => {
+  if (!drag) return;
+  const dx = (e.clientX - drag.x) / src.clientWidth, dy = (e.clientY - drag.y) / src.clientHeight;
+  let [x, y, w, h] = drag.cam;
+  if (drag.mode === 'move') {
+    x = clamp(x + dx, 0, 1 - w); y = clamp(y + dy, 0, 1 - h);
+  } else {
+    w = clamp(w + dx, 0.05, 1 - x);
+    h = w * vAR() / camAspect();
+    if (y + h > 1) { h = 1 - y; w = h * camAspect() / vAR(); }
+  }
+  S.cam = [x, y, w, h].map(v => Math.round(v * 10000) / 10000);
+  layoutBoxes(); markDirty();
+});
+$('cam').addEventListener('pointerup', () => drag = null);
+
+$('hasCam').onchange = e => {
+  if (e.target.checked) S.cam = S._lastCam || defaultCam();
+  else { S._lastCam = S.cam; S.cam = null; }
+  layoutBoxes(); markDirty();
+};
+$('gx').oninput = e => { S.game_x = +e.target.value; layoutBoxes(); markDirty(); };
+
+function gameWin() { return gameWinFor(src.videoWidth || 1920, src.videoHeight || 1080, S.game_x); }
+function gameWinFor(vw, vh, gx) {
+  const gh = R.height - CH(), w = Math.min(vw, vh * R.width / gh);
+  return { x: clamp(gx * vw - w / 2, 0, vw - w), w, vw, vh };
+}
+
+// ---------- perspectives: switch to another stream's clip of the same moment ----------
+let persp = [];
+const PV = {};  // clip id -> { v: hidden <video>, layout }
+const fmtT = s => `${Math.floor(s / 60)}:${(s % 60).toFixed(1).padStart(4, '0')}`;
+async function loadPersp() {
+  persp = await (await fetch(`/api/clip/${id}/perspectives`)).json();
+  drawPersp(true); drawSwitches();
+  // download every perspective once, in the background (perspectives used by markers first);
+  // afterwards they stay loaded for switching back and forth
+  const used = new Set(S.switches.map(x => x.clip).filter(Boolean));
+  const order = [...persp].sort((a, b) => used.has(b.id) - used.has(a.id));
+  for (const p of order) {
+    const sw = S.switches.find(x => x.clip === p.id);
+    await attach(p.id, sw ? sw.off : p.off, sw ? sw.t : (p.from + p.to) / 2 - 3).catch(e => { p.err = e.message; });
+    drawPersp(true);
+  }
+}
+const loading = {};
+function attach(clip, off, at) {  // download + sync offset + facecam layout, once per perspective
+  if (PV[clip]?.layout) return Promise.resolve(PV[clip]);
+  return loading[clip] ??= api(`/api/clip/${id}/align`, { other: clip, off, at: Math.max(0, at) }).then(j => {
+    const v = document.createElement('video');
+    v.muted = true; v.preload = 'auto'; v.playsInline = true; v.src = '/raw/' + clip;
+    v.load();
+    return PV[clip] = { v, layout: j.layout, off: j.off, refined: j.refined };
+  }).finally(() => { delete loading[clip]; });
+}
+let peek = null;  // perspective shown for review only (no marker): { clip, off, streamer }
+function activeSwitch(t) {
+  if (peek) {
+    const p = PV[peek.clip], end = p?.v.duration ? p.v.duration - peek.off : Infinity;
+    return t + peek.off >= 0 && t < end ? peek : null;
+  }
+  let a = null;
+  for (const s of S.switches) if (s.t <= t) a = s;
+  if (!a?.clip) return null;
+  const p = PV[a.clip], end = p?.v.duration ? p.v.duration - a.off : Infinity;
+  return t + a.off >= 0 && t < end ? a : null;  // outside the other clip -> main clip
+}
+function syncOthers(sw) {
+  src.muted = !!(peek && sw);  // reviewing: other stream's sound only where it covers the clip
+  for (const [cid, p] of Object.entries(PV)) {
+    const heard = !!peek && sw?.clip === cid;  // reviewing: hear the other stream instead of the clip
+    p.v.muted = !heard;
+    if (!sw || sw.clip !== cid) { if (!p.v.paused) p.v.pause(); continue; }
+    const target = src.currentTime + sw.off;
+    if (Math.abs(p.v.currentTime - target) > 0.25) p.v.currentTime = target;
+    if (src.paused && !p.v.paused) p.v.pause();
+    if (!src.paused && p.v.paused) p.v.play().catch(() => {});
+  }
+}
+let perspKey = '';
+function drawPersp(force) {
+  const t = src.currentTime;
+  const key = persp.map(p => (t >= p.from && t < p.to ? 1 : 0) + (PV[p.id] ? 'l' : '')).join('');
+  if (key === perspKey && !force) return;  // re-render only when availability changes (keeps buttons clickable)
+  perspKey = key;
+  $('persp').innerHTML = persp.length ? persp.map((p, i) => `<div class="pp ${t >= p.from && t <= p.to ? 'here' : ''}">
+      <img src="${esc(p.thumbnail || '')}"><div class="i"><div><b>@${esc(p.streamer)}</b> · ${p.views} Views
+        <span class="hint">${PV[p.id] ? '· ✓ geladen' : p.err ? '· ✗ ' + esc(p.err) : '· ⤓ lädt…'}</span></div>
+      <div class="hint">${esc(p.title)} · deckt ${fmtT(p.from)}–${fmtT(p.to)}</div></div>
+      <button data-peek="${i}" class="${peek?.clip === p.id ? 'pri' : ''}" title="Nur ansehen, kein Wechsel-Marker">👁 ${peek?.clip === p.id ? 'aktiv' : 'ansehen'}</button>
+      <button data-pp="${i}" ${t >= p.from && t < p.to ? '' : 'disabled title="Videozeit liegt nicht in diesem Clip"'}>+ ab hier</button></div>`).join('')
+    : 'Keine Clips anderer Streams zur gleichen Zeit gefunden.';
+  $('persp').querySelectorAll('[data-pp]').forEach(b => b.onclick = () => addSwitch(persp[+b.dataset.pp], b));
+  $('persp').querySelectorAll('[data-peek]').forEach(b => b.onclick = () => togglePeek(persp[+b.dataset.peek], b));
+}
+function drawSwitches() {
+  const name = s => s.clip ? '@' + s.streamer : '@' + S.streamer + ' (zurück)';
+  $('switches').innerHTML = S.switches.map((s, i) => `<div class="sw"><span class="tm" data-go="${i}">${fmtT(s.t)}</span>
+    → <b>${esc(name(s))}</b> <button class="x" data-del="${i}" title="Wechsel löschen">✕</button></div>`).join('');
+  $('switches').querySelectorAll('[data-go]').forEach(e => e.onclick = () => { src.currentTime = S.switches[+e.dataset.go].t; });
+  $('switches').querySelectorAll('[data-del]').forEach(e => e.onclick = () => { S.switches.splice(+e.dataset.del, 1); drawSwitches(); markDirty(); });
+}
+async function addSwitch(p, btn) {
+  const t = +src.currentTime.toFixed(2);
+  btn.disabled = true; btn.textContent = 'lädt…';
+  try {
+    const j = await attach(p.id, p.off, t);
+    S.switches = S.switches.filter(s => Math.abs(s.t - t) > 0.05);
+    S.switches.push({ t, clip: p.id, off: j.off, streamer: p.streamer });
+    S.switches.sort((a, b) => a.t - b.t);
+    msg(j.refined ? 'Wechsel gesetzt · per Ton synchronisiert ✓' : 'Wechsel gesetzt · Zeitabgleich nach Stream-Zeit (±2s)');
+    drawSwitches(); markDirty();
+  } catch (e) { msg(e.message, true); }
+  finally { drawPersp(true); }
+}
+async function togglePeek(p, btn) {
+  if (peek?.clip === p.id) { peek = null; src.muted = false; drawPersp(true); return; }
+  btn.disabled = true; btn.textContent = 'lädt…';
+  try {
+    const j = await attach(p.id, p.off, clamp(src.currentTime, p.from, Math.max(p.from, p.to - 6)));  // instant once loaded
+    peek = { clip: p.id, off: j.off, streamer: p.streamer };
+    src.muted = true;  // its sound comes from the other stream while reviewing
+    msg(`Ansicht @${p.streamer} – ` + (j.refined ? 'per Ton synchronisiert' : 'Abgleich nach Stream-Zeit (±2s)'));
+  } catch (e) { msg(e.message, true); }
+  drawPersp(true);
+}
+$('backMain').onclick = () => {
+  const t = +src.currentTime.toFixed(2);
+  S.switches = S.switches.filter(s => Math.abs(s.t - t) > 0.05);
+  S.switches.push({ t, clip: null, off: 0 });
+  S.switches.sort((a, b) => a.t - b.t);
+  drawSwitches(); markDirty();
+};
+src.addEventListener('timeupdate', () => drawPersp());
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const switchesBody = () => S.switches.map(({ t, clip, off, streamer }) => ({ t, clip, off, streamer }));
+
+// ---------- trim ----------
+function updDur() {
+  const removed = S.cuts.reduce((n, c) => n + Math.max(0, Math.min(c.end, S.trim_end) - Math.max(c.start, S.trim_start)), 0);
+  $('durInfo').textContent = `Länge: ${fmt(S.trim_end - S.trim_start - removed)}s von ${fmt(src.duration || 0)}s`;
+}
+$('ts').oninput = e => { S.trim_start = clamp(+e.target.value, 0, S.trim_end - 1); fitCutsToTrim(); updDur(); markDirty(); };
+$('te').oninput = e => { S.trim_end = clamp(+e.target.value, S.trim_start + 1, src.duration); fitCutsToTrim(); updDur(); markDirty(); };
+$('setS').onclick = () => { $('ts').value = fmt(src.currentTime); $('ts').oninput({ target: $('ts') }); };
+$('setE').onclick = () => { $('te').value = fmt(src.currentTime); $('te').oninput({ target: $('te') }); };
+$('playTrim').onclick = () => { src.currentTime = S.trim_start; src.play(); };
+src.addEventListener('timeupdate', () => {
+  const cut = S.cuts.find(c => src.currentTime >= c.start && src.currentTime < c.end);
+  if (!src.paused && cut) src.currentTime = cut.end;
+  if (!src.paused && src.currentTime >= S.trim_end) { src.pause(); src.currentTime = S.trim_start; }
+});
+
+// ---------- cut out ranges ----------
+function drawCuts() {
+  normalizeCuts();
+  $('cuts').innerHTML = S.cuts.map((c, i) => `<div class="cut">
+    <label>Ausschneiden</label><input data-start="${i}" type="number" step="0.1" min="0" value="${fmt(c.start)}">
+    <button data-set-start="${i}" title="Start auf aktuelle Videozeit setzen">= aktuelle Zeit</button>
+    <label>bis</label><input data-end="${i}" type="number" step="0.1" min="0" value="${fmt(c.end)}">
+    <button data-set-end="${i}" title="Ende auf aktuelle Videozeit setzen">= aktuelle Zeit</button>
+    <button class="x" data-del-cut="${i}" title="Ausschnitt nicht mehr entfernen">✕</button></div>`).join('');
+  $('cuts').querySelectorAll('[data-start]').forEach(el => el.onchange = () => changeCut(+el.dataset.start, 'start', +el.value));
+  $('cuts').querySelectorAll('[data-end]').forEach(el => el.onchange = () => changeCut(+el.dataset.end, 'end', +el.value));
+  $('cuts').querySelectorAll('[data-set-start]').forEach(el => el.onclick = () => setCut(+el.dataset.setStart, 'start'));
+  $('cuts').querySelectorAll('[data-set-end]').forEach(el => el.onclick = () => setCut(+el.dataset.setEnd, 'end'));
+  $('cuts').querySelectorAll('[data-del-cut]').forEach(el => el.onclick = () => { S.cuts.splice(+el.dataset.delCut, 1); drawCuts(); updDur(); markDirty(); });
+}
+function normalizeCuts() {
+  S.cuts.sort((a, b) => a.start - b.start);
+  S.cuts = S.cuts.reduce((out, c) => {
+    const prev = out.at(-1);
+    if (prev && c.start <= prev.end) prev.end = Math.max(prev.end, c.end);
+    else out.push(c);
+    return out;
+  }, []);
+}
+function fitCutsToTrim() {
+  S.cuts = S.cuts.map(c => ({ start: Math.max(c.start, S.trim_start), end: Math.min(c.end, S.trim_end) }))
+    .filter(c => c.end - c.start >= .1);
+  drawCuts();
+}
+function changeCut(i, side, value) {
+  const c = S.cuts[i], edge = side === 'start' ? c.end - .1 : c.start + .1;
+  c[side] = side === 'start' ? clamp(value, S.trim_start, edge) : clamp(value, edge, S.trim_end);
+  normalizeCuts(); drawCuts(); updDur(); markDirty();
+}
+function setCut(i, side) { changeCut(i, side, +src.currentTime.toFixed(1)); }
+$('addCut').onclick = () => {
+  const start = clamp(+src.currentTime.toFixed(1), S.trim_start, Math.max(S.trim_start, S.trim_end - .1));
+  S.cuts.push({ start, end: Math.min(S.trim_end, +(start + 1).toFixed(1)) });
+  if (S.cuts.at(-1).end - start < .1) S.cuts.at(-1).start = Math.max(S.trim_start, start - 1);
+  normalizeCuts(); drawCuts(); updDur(); markDirty();
+};
+
+// ---------- subtitles ----------
+const chunkText = c => c.words.map(w => w.word).join(' ');
+function retime(text, start, end) {  // mirrors subtitles.retime()
+  const toks = text.split(/\s+/).filter(Boolean);
+  if (!toks.length || end <= start) return [];
+  const total = toks.reduce((a, t) => a + t.length + 1, 0);
+  let t = start;
+  return toks.map(tok => { const d = (end - start) * (tok.length + 1) / total;
+    const w = { word: tok, start: +t.toFixed(3), end: +(t + d).toFixed(3) }; t += d; return w; });
+}
+function renderSubs() {
+  S.subs.sort((a, b) => a.words[0].start - b.words[0].start);
+  $('subs').innerHTML = '';
+  S.subs.forEach((c, i) => {
+    const el = document.createElement('div'); el.className = 'sub'; el.dataset.i = i;
+    const s = c.words[0].start, e = c.words[c.words.length - 1].end;
+    el.innerHTML = `<input type="number" step="0.1" value="${fmt(s)}"><input type="number" step="0.1" value="${fmt(e)}">
+      <input type="text"><button title="Löschen">✕</button>`;
+    const [is, ie, it, del] = el.children;
+    it.value = chunkText(c);
+    const apply = () => {
+      const ns = +is.value, ne = +ie.value;
+      if (ne <= ns) return;
+      const same = it.value.trim() === chunkText(c);
+      // keep word-level timing if only shifting/stretching; else redistribute
+      if (same && c.words.length) {
+        const os = c.words[0].start, oe = c.words[c.words.length - 1].end, k = (ne - ns) / ((oe - os) || 1);
+        c.words = c.words.map(w => ({ ...w, start: +(ns + (w.start - os) * k).toFixed(3), end: +(ns + (w.end - os) * k).toFixed(3) }));
+      } else c.words = retime(it.value, ns, ne);
+      if (!c.words.length) { S.subs.splice(S.subs.indexOf(c), 1); renderSubs(); }
+      markDirty();
+    };
+    is.onchange = ie.onchange = it.onchange = apply;
+    is.onfocus = ie.onfocus = it.onfocus = () => { src.currentTime = c.words[0].start; };
+    del.onclick = () => { S.subs.splice(S.subs.indexOf(c), 1); renderSubs(); markDirty(); };
+    $('subs').appendChild(el);
+  });
+}
+$('addSub').onclick = () => {
+  const t = src.currentTime;
+  S.subs.push({ words: retime('NEU', t, Math.min(t + 1.5, src.duration)) });
+  renderSubs(); markDirty();
+  const rows = [...document.querySelectorAll('.sub')];
+  const r = rows.find(r => Math.abs(+r.children[0].value - t) < 0.06); if (r) r.children[2].select();
+};
+$('caption').oninput = markDirty;
+// title card text -> same title in the TikTok caption
+let lastTitle = null;
+$('otitle').oninput = () => {
+  const nt = $('otitle').value.trim(), cap = $('caption').value;
+  if (lastTitle && cap.includes(lastTitle)) $('caption').value = cap.replace(lastTitle, nt);
+  else if (nt) {  // title not found in caption: put it in front of the generated part
+    const i = cap.indexOf(' 🎮 Clip von');
+    $('caption').value = i >= 0 ? nt + cap.slice(i) : nt + ' ' + cap;
+  }
+  lastTitle = nt || null;
+  markDirty();
+};
+
+// ---------- live preview ----------
+function cover(sx, sy, sw, sh, aspect) {  // crop src rect to target aspect (like ffmpeg increase+crop)
+  if (sw / sh > aspect) { const nw = sh * aspect; return [sx + (sw - nw) / 2, sy, nw, sh]; }
+  const nh = sw / aspect; return [sx, sy + (sh - nh) / 2, sw, nh];
+}
+function draw() {
+  requestAnimationFrame(draw);
+  if (!R || src.readyState < 2) return;
+  const W = cv.width, H = cv.height, k = W / R.width, camH = CH() * k;
+  // active perspective switch -> draw the other stream (synced) with its facecam layout
+  const sw = activeSwitch(src.currentTime), ov = sw && PV[sw.clip];
+  syncOthers(sw);
+  const v = ov && ov.v.readyState >= 2 ? ov.v : src;
+  const cam = v === src ? S.cam : ov.layout?.cam || null;
+  const vw = v.videoWidth, vh = v.videoHeight;
+  ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, H);
+  const top = cam ? [cam[0] * vw, cam[1] * vh, cam[2] * vw, cam[3] * vh] : [0, 0, vw, vh];
+  ctx.drawImage(v, ...cover(...top, camAspect()), 0, 0, W, camH);
+  const g = v === src ? gameWin() : gameWinFor(vw, vh, ov.layout?.game_x ?? 0.5);
+  ctx.drawImage(v, g.x, 0, g.w, vh, 0, camH, W, H - camH);
+
+  const F = '"Montserrat Black", "Arial Black", sans-serif';
+  const outlined = (txt, x, y, lw) => { ctx.lineWidth = lw; ctx.strokeStyle = '#000'; ctx.lineJoin = 'round'; ctx.strokeText(txt, x, y); ctx.fillText(txt, x, y); };
+  // credit
+  ctx.font = `${40 * k}px ${F}`; ctx.textBaseline = 'top'; ctx.textAlign = 'left'; ctx.fillStyle = '#fff';
+  outlined('@' + (v === src ? S.streamer : sw.streamer), 30 * k, 30 * k, 8 * k);
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  const t = src.currentTime, rel = t - S.trim_start;
+
+  // subtitles: current chunk, spoken word highlighted + enlarged (matches subtitles.py)
+  document.querySelectorAll('.sub').forEach(el => el.classList.remove('cur'));
+  const ci = S.subs.findIndex(c => t >= c.words[0].start && t <= c.words[c.words.length - 1].end);
+  if (ci >= 0 && t >= S.trim_start && t <= S.trim_end) {
+    document.querySelector(`.sub[data-i="${ci}"]`)?.classList.add('cur');
+    const ws = S.subs[ci].words, fs = R.font_size * k;
+    let ai = 0; ws.forEach((w, i) => { if (t >= w.start) ai = i; });
+    const words = ws.map(w => w.word.toUpperCase());
+    const width = i => { ctx.font = `${fs * (i === ai ? 1.12 : 1)}px ${F}`; return ctx.measureText(words[i]).width; };
+    ctx.font = `${fs}px ${F}`; const sp = ctx.measureText(' ').width;
+    const total = words.reduce((a, _, i) => a + width(i), 0) + sp * (words.length - 1);
+    let x = W / 2 - total / 2; const y = subsY() * k;
+    words.forEach((wd, i) => {
+      const wdt = width(i);
+      ctx.font = `${fs * (i === ai ? 1.12 : 1)}px ${F}`;
+      ctx.fillStyle = 'rgba(0,0,0,.55)'; ctx.fillText(wd, x + wdt / 2 + 4 * k, y + 4 * k);  // shadow
+      ctx.fillStyle = i === ai ? R.highlight : '#fff';
+      outlined(wd, x + wdt / 2, y, 16 * k);
+      x += wdt + sp;
+    });
+  }
+
+  // title card between facecam and game for the first seconds
+  const tt = $('otitle').value.replace(/\p{Extended_Pictographic}|️|‍/gu, '').replace(/\s+/g, ' ').trim();
+  if (tt && rel >= 0 && rel < R.title_secs) {
+    ctx.font = `${R.title_size * k}px ${F}`;
+    const maxW = W - 2 * 110 * k, lines = [];
+    let line = '';
+    tt.split(' ').forEach(wd => { const tst = line ? line + ' ' + wd : wd;
+      if (ctx.measureText(tst).width > maxW && line) { lines.push(line); line = wd; } else line = tst; });
+    if (line) lines.push(line);
+    const lh = R.title_size * k * 1.25, pad = 22 * k, y0 = camH - (lines.length - 1) * lh / 2;
+    const a = Math.min(1, rel / 0.12, (R.title_secs - rel) / 0.22);
+    ctx.globalAlpha = Math.max(0, a);
+    lines.forEach((ln, i) => {
+      const w = ctx.measureText(ln).width, y = y0 + i * lh;
+      ctx.fillStyle = '#fff'; ctx.fillRect(W / 2 - w / 2 - pad, y - lh / 2 - pad / 2, w + 2 * pad, lh + pad);
+    });
+    ctx.fillStyle = '#111';
+    lines.forEach((ln, i) => ctx.fillText(ln, W / 2, y0 + i * lh));
+    ctx.globalAlpha = 1;
+  }
+  // split handle
+  if (splitHover || splitDrag) {
+    ctx.fillStyle = '#39d353'; ctx.fillRect(0, camH - 1.5, W, 3);
+    ctx.beginPath(); ctx.roundRect(W / 2 - 28, camH - 7, 56, 14, 7); ctx.fill();
+  }
+}
+
+// ---------- actions ----------
+async function save() {
+  const b = $('save'); b.disabled = true; msg('Rendere… (kann ~30s dauern)');
+  try {
+    await api('/api/clip/' + id, {
+      cam: S.cam, game_x: S.game_x, trim_start: S.trim_start, trim_end: S.trim_end,
+      cuts: S.cuts, subs: S.subs, caption: $('caption').value, switches: switchesBody(),
+      overlay_title: $('otitle').value, cam_h: Math.round(CH()),
+    });
+    dirty = false; msg('Gespeichert & gerendert ✓');
+    $('out').src = '/video/' + id + '?t=' + Date.now();
+  } catch (e) { msg(e.message, true); throw e; } finally { b.disabled = false; }
+}
+async function setStatus(st) {
+  await api(`/api/clip/${id}/status`, { status: st });
+  S.status = st; $('title').querySelector('.badge').textContent = st;
+}
+async function exportClip() {
+  if (dirty) await save();
+  const j = await api(`/api/clip/${id}/export`);
+  S.status = 'approved'; $('title').querySelector('.badge').textContent = 'approved';
+  msg('Exportiert ✓ ' + j.file);
+}
+$('save').onclick = () => save().catch(() => {});
+// ---------- workflow: next clip in the list's current order (saved by the list page) ----------
+// handled clip leaves the order; the next one is whatever now sits at its position
+function goNext() {
+  dirty = false;
+  let order = [];
+  try { order = JSON.parse(localStorage.getItem('clipOrder') || '[]'); } catch {}
+  const i = order.indexOf(id);
+  if (i >= 0) order.splice(i, 1);
+  try { localStorage.setItem('clipOrder', JSON.stringify(order)); } catch {}
+  const n = order[i >= 0 ? i : 0];
+  location.href = n ? '/edit/' + n : '/';
+}
+async function exportAndNext() {
+  const b = $('approve'); b.disabled = true; msg('Wird im Hintergrund gerendert & exportiert…');
+  try {
+    await api('/api/clip/' + id + '/export_async', {
+      cam: S.cam, game_x: S.game_x, trim_start: S.trim_start, trim_end: S.trim_end,
+      cuts: S.cuts, subs: S.subs, caption: $('caption').value, overlay_title: $('otitle').value, cam_h: Math.round(CH()),
+      switches: switchesBody(),
+    });
+    goNext();
+  } catch (e) { msg(e.message, true); b.disabled = false; }
+}
+$('approve').onclick = exportAndNext;
+$('reject').onclick = () => setStatus('ignored').then(goNext).catch(e => msg(e.message, true));
+$('posted').onclick = async () => {
+  if (!confirm('Als gepostet markieren? Der Clip verschwindet aus der Liste (Tab „Gepostet“).')) return;
+  try {
+    if (S.status !== 'approved' || dirty) await exportClip();
+    await setStatus('uploaded'); location.href = '/';
+  } catch (e) { msg(e.message, true); }
+};
+// ---------- facecam / game split (drag the seam in the preview) ----------
+let splitHover = false, splitDrag = false;
+const cvY = e => (e.clientY - cv.getBoundingClientRect().top) * R.height / cv.clientHeight;  // output px
+function setSplit(px) {
+  S.cam_h = Math.round(clamp(px, 240, 1400) / 2) * 2;
+  fitCam(); updSplit(); layoutBoxes(); markDirty();
+}
+function fitCam() {
+  if (S.cam) {  // keep facecam box at the area's aspect: same center, same width if possible
+    let [x, y, w, h] = S.cam; const cx = x + w / 2, cy = y + h / 2;
+    h = w * vAR() / camAspect();
+    if (h > 1) { h = 1; w = h * camAspect() / vAR(); }
+    if (w > 1) { w = 1; h = w * vAR() / camAspect(); }
+    S.cam = [clamp(cx - w / 2, 0, 1 - w), clamp(cy - h / 2, 0, 1 - h), w, h].map(v => Math.round(v * 10000) / 10000);
+  }
+}
+$('redetect').onclick = async () => {
+  const b = $('redetect'); b.disabled = true; b.textContent = 'Suche…';
+  try {
+    const { cam } = await api(`/api/clip/${id}/redetect`);
+    if (!cam) { msg('Keine Facecam gefunden', true); return; }
+    S.cam = cam; $('hasCam').checked = true;
+    // size the facecam area so the whole detected cam fits without cropping
+    const camPxAspect = cam[2] * src.videoWidth / (cam[3] * src.videoHeight);
+    S.cam_h = Math.round(clamp(R.width / camPxAspect, 240, 1400) / 2) * 2;
+    fitCam(); updSplit(); layoutBoxes(); markDirty();
+    msg('Facecam erkannt ✓ – Speichern übernimmt sie für @' + S.streamer);
+  } catch (e) { msg(e.message, true); }
+  finally { b.disabled = false; b.textContent = 'Facecam neu erkennen'; }
+};
+function updSplit() { $('splitInfo').textContent = `Facecam ${Math.round(CH() / R.height * 100)}%`; }
+cv.addEventListener('pointermove', e => {
+  if (!R) return;
+  if (splitDrag) return setSplit(cvY(e));
+  splitHover = Math.abs(cvY(e) - CH()) < 40;
+  cv.style.cursor = splitHover ? 'ns-resize' : '';
+});
+cv.addEventListener('pointerdown', e => {
+  if (R && Math.abs(cvY(e) - CH()) < 40) { splitDrag = true; cv.setPointerCapture(e.pointerId); e.preventDefault(); }
+});
+cv.addEventListener('pointerup', () => splitDrag = false);
+cv.addEventListener('pointerleave', () => { if (!splitDrag) splitHover = false; });
+$('resetSplit').onclick = () => setSplit(R.cam_height);
+
+requestAnimationFrame(draw);
+window.addEventListener('beforeunload', e => { if (dirty) { e.preventDefault(); e.returnValue = ''; } });
+load();
+</script>

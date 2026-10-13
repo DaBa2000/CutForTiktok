@@ -1,0 +1,111 @@
+<!doctype html><html lang="de"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Edit</title>
+<style>
+:root{--bg:#0c0c0f;--panel:#16161b;--panel2:#1d1d24;--line:#2a2a33;--fg:#ececf1;--mute:#8d8d9a;--acc:#fe2c55;--acc2:#25f4ee;--ok:#2ea043}
+*{box-sizing:border-box}
+body{font:14px/1.4 -apple-system,system-ui,sans-serif;background:var(--bg);color:var(--fg);margin:0}
+.top{position:sticky;top:0;z-index:20;background:rgba(12,12,15,.85);backdrop-filter:blur(12px);border-bottom:1px solid var(--line)}
+.nav{display:flex;align-items:center;gap:18px;padding:12px 20px;flex-wrap:wrap}
+.logo{font-weight:800;font-size:17px;letter-spacing:-.3px}.logo span{background:linear-gradient(90deg,var(--acc2),var(--acc));-webkit-background-clip:text;background-clip:text;color:transparent}
+.pages{display:flex;gap:4px;background:var(--panel);padding:4px;border-radius:999px}
+.pages a{padding:6px 14px;border-radius:999px;text-decoration:none;color:var(--mute);font-weight:600}
+.pages a.on{background:var(--fg);color:#000}
+#info{margin-left:auto;color:var(--mute);font-size:13px}
+main{max-width:1200px;margin:0 auto;padding:20px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;overflow:hidden;display:flex;flex-direction:column}
+.thumb{position:relative;aspect-ratio:16/9;background:#000;display:block}
+.thumb img{width:100%;height:100%;object-fit:cover;display:block}
+.pill{position:absolute;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:700;background:rgba(0,0,0,.75)}
+.st{left:8px;top:8px}.dur{right:8px;bottom:8px}.parts{right:8px;top:8px;background:#6e40c9}
+.st.ready{background:#6e40c9}.st.edited{background:#9e6a03}.st.busy{background:#1f6feb}.st.exp{background:var(--ok)}.st.err{background:#da3633}
+.body{padding:10px 12px 12px;display:flex;flex-direction:column;gap:7px;flex:1}
+.orig{color:var(--mute);font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tin{display:flex;gap:6px;align-items:center}
+.tin input{flex:1;min-width:0;font:inherit;font-weight:650;background:var(--panel2);border:1px solid var(--line);color:var(--fg);border-radius:8px;padding:7px 9px}
+.tin input:focus{outline:none;border-color:var(--acc2)}
+.saved{color:var(--ok);font-size:12px;width:16px}
+.err{color:#f85149;font-size:12px}
+.act{display:flex;gap:6px;margin-top:auto}
+.act a,.act button{flex:1;text-align:center;text-decoration:none;padding:8px;border-radius:9px;font:inherit;font-weight:700;cursor:pointer;border:0}
+.edit{background:var(--acc);color:#fff}.edit.off{background:var(--panel2);color:var(--mute);pointer-events:none}
+.sec{background:var(--panel2);color:var(--fg);border:1px solid var(--line)!important}
+.empty{color:var(--mute);text-align:center;padding:60px 0}
+.empty a{color:var(--acc2)}
+</style>
+
+<div class="top"><div class="nav">
+  <div class="logo">Cut<span>ForTiktok</span></div>
+  <nav class="pages"><a href="/foryou">For You</a><a href="/edit" class="on">Edit</a><a href="/scheduler">Scheduler</a><a href="/">Post Selector</a></nav><a href="/pair" title="iPhone-App verbinden" style="text-decoration:none">📱</a>
+  <span id="info"></span>
+</div></div>
+<main><div class="grid" id="grid"></div></main>
+
+<script>
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+let clips = [], rendering = new Set(), current = null;
+
+async function load() {
+  const j = await (await fetch('/api/editlist')).json();
+  clips = j.clips; rendering = new Set(j.rendering || []); current = j.prefetch?.current;
+  try { localStorage.setItem('clipOrder', JSON.stringify(clips.map(c => c.id))); } catch {}  // editor "next clip"
+  if (document.activeElement?.matches('.tin input')) return drawStatus();  // don't disturb typing
+  draw();
+}
+
+function state(c) {
+  if (rendering.has(c.id)) return ['exp', 'exportiert gerade…'];
+  if (c.error && !c.ready) return ['err', 'Fehler'];
+  if (!c.ready) return ['busy', c.id === current ? 'wird vorbereitet…' : 'in Warteschlange'];
+  return c.status === 'pending_review' ? ['edited', 'bearbeitet'] : ['ready', 'bereit ⚡'];
+}
+
+function draw() {
+  const ready = clips.filter(c => c.ready).length;
+  $('info').textContent = `${clips.length} Clips · ${ready} bereit` + (clips.length - ready ? ` · ${clips.length - ready} werden vorbereitet` : '');
+  $('grid').innerHTML = clips.map(c => {
+    const [cls, label] = state(c);
+    return `<div class="card" data-id="${c.id}">
+      <a class="thumb" href="/edit/${c.id}">${c.thumbnail ? `<img loading="lazy" src="${esc(c.thumbnail)}">` : ''}
+        <span class="pill st ${cls}">${label}</span>
+        ${c.parts > 1 ? `<span class="pill parts">🔗 ${c.parts} Clips</span>` : ''}
+        <span class="pill dur">${Math.round(c.duration || 0)}s</span></a>
+      <div class="body">
+        <div class="orig" title="${esc(c.title)}">@${esc(c.streamer)} · ${c.views} Views · Original: ${esc(c.title)}</div>
+        <div class="tin"><input value="${esc(c.overlay_title ?? c.title)}" placeholder="Titel für das Video" data-t="${c.id}"><span class="saved"></span></div>
+        ${c.error ? `<div class="err">${esc(c.error)}</div>` : ''}
+        <div class="act"><a class="edit ${c.ready ? '' : 'off'}" href="/edit/${c.id}">Bearbeiten</a>
+          <button class="sec" data-back="${c.id}" title="Zurück in den For-You-Feed">↶ Feed</button>
+          <button class="sec" data-ign="${c.id}">Ignorieren</button></div>
+      </div></div>`;
+  }).join('') || '<div class="empty">Noch nichts zum Bearbeiten.<br>Im <a href="/foryou">For You</a>-Feed Clips behalten.</div>';
+}
+
+function drawStatus() {  // update only the status pills while a title is being typed
+  for (const c of clips) {
+    const el = document.querySelector(`.card[data-id="${c.id}"] .st`);
+    if (el) { const [cls, label] = state(c); el.className = 'pill st ' + cls; el.textContent = label; }
+  }
+}
+
+async function saveTitle(inp) {
+  const c = clips.find(x => x.id === inp.dataset.t);
+  if (!c || inp.value === (c.overlay_title ?? c.title)) return;
+  await fetch(`/api/clip/${c.id}/title`, { method: 'POST', body: JSON.stringify({ overlay_title: inp.value }) });
+  c.overlay_title = inp.value;
+  const s = inp.nextElementSibling; s.textContent = '✓'; setTimeout(() => s.textContent = '', 1500);
+}
+document.addEventListener('change', e => { if (e.target.matches('.tin input')) saveTitle(e.target); });
+document.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.matches('.tin input')) e.target.blur(); });
+document.addEventListener('click', async e => {
+  const b = e.target.closest('[data-ign],[data-back]');
+  if (!b) return;
+  const id = b.dataset.ign || b.dataset.back;
+  await fetch(`/api/clip/${id}/status`, { method: 'POST', body: JSON.stringify({ status: b.dataset.ign ? 'ignored' : 'new' }) });
+  load();
+});
+
+load();
+setInterval(() => { if (!document.hidden) load(); }, 4000);
+</script>

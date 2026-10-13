@@ -1,0 +1,237 @@
+<!doctype html><html lang="de"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Scheduler</title>
+<style>
+:root{--bg:#0c0c0f;--panel:#16161b;--panel2:#1d1d24;--line:#2a2a33;--fg:#ececf1;--mute:#8d8d9a;--acc:#fe2c55;--acc2:#25f4ee;--ok:#2ea043;--warn:#d29922}
+*{box-sizing:border-box}
+body{font:14px/1.4 -apple-system,system-ui,sans-serif;background:var(--bg);color:var(--fg);margin:0}
+.top{position:sticky;top:0;z-index:20;background:rgba(12,12,15,.85);backdrop-filter:blur(12px);border-bottom:1px solid var(--line)}
+.nav{display:flex;align-items:center;gap:18px;padding:12px 20px}
+.logo{font-weight:800;font-size:17px;letter-spacing:-.3px}.logo span{background:linear-gradient(90deg,var(--acc2),var(--acc));-webkit-background-clip:text;background-clip:text;color:transparent}
+.pages{display:flex;gap:4px;background:var(--panel);padding:4px;border-radius:999px}
+.pages a{padding:6px 14px;border-radius:999px;text-decoration:none;color:var(--mute);font-weight:600}
+.pages a.on{background:var(--fg);color:#000}
+#info{margin-left:auto;color:var(--mute);font-size:13px}
+main{max-width:1100px;margin:0 auto;padding:16px 20px 60px;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.2fr);gap:24px}
+h2{font-size:15px;margin:6px 0 12px;display:flex;align-items:center;gap:8px}
+h2 small{color:var(--mute);font-weight:500}
+.box{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px}
+.hint{color:var(--mute);font-size:12px;margin-top:10px}
+input,select{font:inherit;background:var(--panel2);border:1px solid var(--line);color:var(--fg);border-radius:8px;padding:6px 8px}
+input.tm{width:68px;text-align:center;font-variant-numeric:tabular-nums}
+input.iv{width:56px;text-align:center}
+.btn{background:var(--panel2);border:1px solid var(--line);color:var(--fg);border-radius:9px;padding:7px 12px;font:inherit;font-weight:700;cursor:pointer;white-space:nowrap}
+.btn:hover{border-color:#444}.btn.pri{background:var(--acc);border-color:var(--acc);color:#fff}
+.row{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.err{color:#f85149;font-size:12px}
+/* timeline */
+.day{color:var(--mute);font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;margin:14px 0 6px}
+.day:first-child{margin-top:0}
+.tl{position:relative;padding-left:70px}
+.tl::before{content:"";position:absolute;left:58px;top:6px;bottom:6px;width:2px;background:var(--line)}
+.ev{position:relative;margin-bottom:10px;background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:8px;display:flex;gap:10px;align-items:center}
+.ev .time{position:absolute;left:-70px;top:12px;width:50px;text-align:right;font-weight:800;font-variant-numeric:tabular-nums}
+.ev::before{content:"";position:absolute;left:-16px;top:16px;width:10px;height:10px;border-radius:50%;background:var(--acc2);box-shadow:0 0 0 3px var(--bg)}
+.ev.running::before{background:var(--ok)}.ev.failed::before{background:#f85149}.ev.close{border-color:var(--warn)}
+.ev img{width:84px;height:47px;object-fit:cover;border-radius:7px;background:#000;flex:none}
+.ev .i{flex:1;min-width:0}
+.t{font-weight:650;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.m{color:var(--mute);font-size:12px}
+.chip{display:inline-block;font-size:11px;font-weight:700;padding:1px 7px;border-radius:999px;background:#25a8a4;color:#fff}
+.chip.running{background:var(--ok)}.chip.failed{background:#da3633}
+.x{background:none;border:0;color:var(--mute);font-size:16px;cursor:pointer;padding:4px 6px}.x:hover{color:var(--fg)}
+/* unplanned */
+.cards{display:grid;gap:12px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;overflow:hidden;display:grid;grid-template-columns:200px 1fr}
+.card .thumb{position:relative;background:#000;cursor:pointer}
+.card .thumb img{width:100%;height:100%;object-fit:cover;display:block;min-height:112px}
+.card .thumb::after{content:"▶";position:absolute;inset:0;display:grid;place-items:center;font-size:26px;color:#fff;text-shadow:0 2px 10px #000;opacity:.8}
+.card .b{padding:10px 12px;display:flex;flex-direction:column;gap:6px;min-width:0}
+.cap{color:var(--mute);font-size:12px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.empty{color:var(--mute);text-align:center;padding:24px 0}
+dialog{background:#000;border:0;border-radius:14px;padding:0;max-width:min(420px,92vw)}
+dialog::backdrop{background:rgba(0,0,0,.75)}
+dialog video{display:block;width:100%;max-height:85vh}
+@media (max-width:860px){main{grid-template-columns:1fr}.card{grid-template-columns:1fr}.nav,main{padding-left:12px;padding-right:12px}}
+</style>
+
+<div class="top"><div class="nav">
+  <div class="logo">Cut<span>ForTiktok</span></div>
+  <nav class="pages"><a href="/foryou">For You</a><a href="/edit">Edit</a><a href="/scheduler" class="on">Scheduler</a><a href="/">Post Selector</a></nav><a href="/pair" title="iPhone-App verbinden" style="text-decoration:none">📱</a>
+  <span id="info"></span>
+</div></div>
+
+<main>
+  <section>
+    <h2>⏰ Geplant <small id="plannedN"></small></h2>
+    <div class="box" id="timeline"></div>
+    <div class="hint">Die Browser-Extension postet zur geplanten Zeit (deutsche Zeit) selbst.
+      Dafür müssen Mac (wach), Safari und diese App laufen und du bei TikTok eingeloggt sein.</div>
+  </section>
+  <section>
+    <h2>📦 Exportiert, noch nicht geplant <small id="openN"></small></h2>
+    <div class="box" style="margin-bottom:12px">
+      <div class="row"><b style="margin-right:4px">Automatisch verteilen:</b>
+        <select id="aDay"></select> ab <input class="tm" id="aTime" placeholder="HH:MM">
+        alle <input class="iv" id="aEvery" type="number" min="5" value="60"> Min
+        <button class="btn pri" id="aGo">Verteilen</button></div>
+      <div class="err" id="aErr"></div>
+    </div>
+    <div class="cards" id="open"></div>
+  </section>
+</main>
+<dialog id="dlg"><video id="vid" controls playsinline></video></dialog>
+
+<script>
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+// ---------- German time ----------
+const TZ = 'Europe/Berlin';
+function bParts(ts) {
+  return Object.fromEntries(new Intl.DateTimeFormat('en-GB', { timeZone: TZ, hourCycle: 'h23', year: 'numeric', month: '2-digit',
+    day: '2-digit', hour: '2-digit', minute: '2-digit' }).formatToParts(ts).map(p => [p.type, p.value]));
+}
+const bDate = ts => { const p = bParts(ts); return `${p.year}-${p.month}-${p.day}`; };
+const bTime = ts => { const p = bParts(ts); return `${p.hour}:${p.minute}`; };
+function bToTs(date, hhmm) {  // German wall time -> epoch ms (summer/winter time safe)
+  const [y, mo, d] = date.split('-').map(Number), [h, mi] = hhmm.split(':').map(Number);
+  const want = Date.UTC(y, mo - 1, d, h, mi);
+  let ts = want;
+  for (let i = 0; i < 3; i++) { const p = bParts(ts); ts += want - Date.UTC(+p.year, +p.month - 1, +p.day, +p.hour, +p.minute); }
+  return ts;
+}
+function parseHHMM(t) {  // "18:30", "18.30", "1830", "18" -> "18:30" (always 24 h)
+  const m = String(t).trim().match(/^(\d{1,2})(?:[:.,h ]?(\d{2}))?$/);
+  if (!m || +m[1] > 23 || +(m[2] || 0) > 59) return null;
+  return m[1].padStart(2, '0') + ':' + (m[2] || '00');
+}
+function days() {  // today .. +6 in German dates
+  const out = [];
+  for (let i = 0; i < 7; i++) {
+    const ts = Date.now() + i * 86400000, d = bDate(ts);
+    if (out.some(x => x.d === d)) continue;
+    const name = i === 0 ? 'Heute' : i === 1 ? 'Morgen' : new Intl.DateTimeFormat('de-DE', { timeZone: TZ, weekday: 'long' }).format(ts);
+    out.push({ d, label: `${name}, ${new Intl.DateTimeFormat('de-DE', { timeZone: TZ, day: '2-digit', month: '2-digit' }).format(ts)}` });
+  }
+  return out;
+}
+const dayLabel = ts => days().find(x => x.d === bDate(ts))?.label
+  || new Intl.DateTimeFormat('de-DE', { timeZone: TZ, weekday: 'long', day: '2-digit', month: '2-digit' }).format(ts);
+const dayOptions = sel => days().map(x => `<option value="${x.d}" ${x.d === sel ? 'selected' : ''}>${x.label}</option>`).join('');
+
+// ---------- data ----------
+let queue = [], plans = {}, editing = null;
+async function load() {
+  const [q, s] = await Promise.all([fetch('/api/queue').then(r => r.json()), fetch('/api/schedules').then(r => r.json())]);
+  queue = q; plans = s || {};
+  if (!document.activeElement || !document.activeElement.matches('input,select')) draw();  // don't disturb typing
+}
+async function plan(id, at) {
+  const r = await fetch('/api/schedule/' + id, { method: 'POST', body: JSON.stringify({ at }) });
+  if (!r.ok) throw new Error((await r.json()).error || r.statusText);
+}
+
+function nextFree() {  // suggestion: next full hour >= 30 min ahead
+  return Math.ceil((Date.now() + 30 * 60000) / 3600000) * 3600000;
+}
+function planForm(id, ts) {
+  return `<div class="row"><select>${dayOptions(bDate(ts))}</select><input class="tm" value="${bTime(ts)}" placeholder="HH:MM">
+    <button class="btn pri" data-save="${id}">Planen</button></div><div class="err"></div>`;
+}
+
+function draw() {
+  const byId = Object.fromEntries(queue.map(c => [c.id, c]));
+  const planned = Object.values(plans).sort((a, b) => a.at - b.at);
+  const open = queue.filter(c => !plans[c.id]);
+  $('plannedN').textContent = planned.length ? `(${planned.length})` : '';
+  $('openN').textContent = open.length ? `(${open.length})` : '';
+  const next = planned.find(p => p.state === 'planned' && p.at > Date.now());
+  $('info').textContent = next ? `Nächster Post: ${dayLabel(next.at).split(',')[0]} ${bTime(next.at)} Uhr` : 'Nichts geplant';
+
+  let lastDay = '', html = '';
+  planned.forEach((p, i) => {
+    const c = byId[p.id] || {};
+    const day = dayLabel(p.at);
+    if (day !== lastDay) { html += `${lastDay ? '</div>' : ''}<div class="day">${esc(day)}</div><div class="tl">`; lastDay = day; }
+    const close = planned.some((o, j) => j !== i && Math.abs(o.at - p.at) < 10 * 60000);
+    const chip = p.state === 'running' ? '<span class="chip running">wird gepostet…</span>'
+      : p.state === 'failed' ? '<span class="chip failed">fehlgeschlagen</span>' : '<span class="chip">geplant</span>';
+    html += `<div class="ev ${p.state} ${close ? 'close' : ''}"><div class="time">${bTime(p.at)}</div>
+      <img src="${esc(c.thumbnail || '')}" alt="">
+      <div class="i"><div class="t" title="${esc(p.title)}">${esc(p.title)}</div>
+        <div class="m">@${esc(p.streamer)} ${chip}${close ? ' · <span style="color:var(--warn)">weniger als 10 Min Abstand</span>' : ''}</div>
+        ${p.error ? `<div class="err">${esc(p.error)}</div>` : ''}
+        ${!byId[p.id] ? '<div class="err">nicht mehr in der Export-Liste</div>' : ''}
+        ${editing === p.id ? planForm(p.id, p.at > Date.now() ? p.at : nextFree()) : ''}</div>
+      ${p.state !== 'running' && i > 0 && planned[i - 1].state !== 'running' ? `<button class="x" title="Mit dem vorherigen Post tauschen" data-swap="${i - 1}">↑</button>` : ''}
+      ${p.state !== 'running' && i < planned.length - 1 && planned[i + 1].state !== 'running' ? `<button class="x" title="Mit dem nächsten Post tauschen" data-swap="${i}">↓</button>` : ''}
+      ${p.state !== 'running' && byId[p.id] ? `<button class="x" title="Zeit ändern" data-edit="${p.id}">✎</button>` : ''}
+      <button class="x" title="Planung entfernen" data-del="${p.id}">✕</button></div>`;
+  });
+  $('timeline').innerHTML = html ? html + '</div>' : '<div class="empty">Noch nichts geplant.<br>Rechts einen Clip planen oder automatisch verteilen.</div>';
+
+  $('open').innerHTML = open.map(c => `<div class="card">
+      <div class="thumb" data-play="${esc(c.video_url)}"><img src="${esc(c.thumbnail || '')}" alt=""></div>
+      <div class="b"><div class="t" title="${esc(c.title)}">${esc(c.title)}</div>
+        <div class="m">@${esc(c.streamer)} · ${esc(c.filename)}</div>
+        <div class="cap" title="${esc(c.caption)}">${esc(c.caption)}</div>
+        ${planForm(c.id, nextFree())}
+        <div class="row"><a class="btn" href="/edit/${c.id}">Bearbeiten</a><button class="btn" data-posted="${c.id}">✓ schon gepostet</button></div>
+      </div></div>`).join('') || '<div class="box empty">Keine exportierten Clips offen.<br>Im Edit-Bereich Clips bearbeiten und exportieren.</div>';
+  $('aDay').innerHTML = dayOptions($('aDay').value || bDate(nextFree()));
+  if (!$('aTime').value) $('aTime').value = bTime(nextFree());
+}
+
+// ---------- actions ----------
+document.addEventListener('click', async e => {
+  const t = e.target.closest('[data-save],[data-del],[data-edit],[data-posted],[data-play],[data-swap]');
+  if (!t) return;
+  if (t.dataset.swap) {  // clips trade places, the time slots stay
+    const planned = Object.values(plans).sort((a, b) => a.at - b.at), a = planned[+t.dataset.swap], b = planned[+t.dataset.swap + 1];
+    await Promise.all([plan(a.id, b.at), plan(b.id, a.at)]);
+    return load();
+  }
+  if (t.dataset.play) { $('vid').src = t.dataset.play; $('dlg').showModal(); $('vid').play().catch(() => {}); return; }
+  if (t.dataset.edit) { editing = editing === t.dataset.edit ? null : t.dataset.edit; draw(); return; }
+  if (t.dataset.del) { await plan(t.dataset.del, null); editing = null; return load(); }
+  if (t.dataset.posted) {
+    await fetch(`/api/clip/${t.dataset.posted}/status`, { method: 'POST', body: JSON.stringify({ status: 'uploaded' }) });
+    return load();
+  }
+  if (t.dataset.save) {
+    const box = t.closest('.row'), err = box.nextElementSibling;
+    const hhmm = parseHHMM(box.querySelector('input').value);
+    if (!hhmm) { err.textContent = 'Uhrzeit als HH:MM eingeben (24 h, z. B. 18:30)'; return; }
+    const at = bToTs(box.querySelector('select').value, hhmm);
+    if (at <= Date.now()) { err.textContent = 'Dieser Zeitpunkt ist schon vorbei'; return; }
+    try { await plan(t.dataset.save, at); editing = null; document.activeElement?.blur(); load(); }
+    catch (x) { err.textContent = x.message; }
+  }
+});
+document.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && e.target.matches('.tm')) e.target.closest('.row')?.querySelector('[data-save]')?.click();
+});
+$('dlg').addEventListener('click', e => { if (e.target === $('dlg')) $('dlg').close(); });
+$('dlg').addEventListener('close', () => { $('vid').pause(); $('vid').removeAttribute('src'); });
+
+$('aGo').onclick = async () => {
+  $('aErr').textContent = '';
+  const hhmm = parseHHMM($('aTime').value), every = +$('aEvery').value;
+  if (!hhmm) return $('aErr').textContent = 'Startzeit als HH:MM eingeben (24 h)';
+  if (!(every >= 5)) return $('aErr').textContent = 'Abstand mindestens 5 Minuten';
+  let at = bToTs($('aDay').value, hhmm);
+  if (at <= Date.now()) return $('aErr').textContent = 'Startzeit ist schon vorbei';
+  const taken = Object.values(plans).map(p => p.at);
+  for (const c of queue.filter(c => !plans[c.id])) {
+    while (taken.some(x => Math.abs(x - at) < every * 60000 / 2)) at += every * 60000;  // skip already used slots
+    await plan(c.id, at);
+    taken.push(at);
+    at += every * 60000;
+  }
+  document.activeElement?.blur();
+  load();
+};
+
+load();
+setInterval(() => { if (!document.hidden && !$('dlg').open) load(); }, 15000);  // extension updates the status
+</script>

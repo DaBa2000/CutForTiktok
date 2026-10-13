@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>NSCameraUsageDescription</key>
+	<string>Zum Scannen des QR-Codes auf dem Mac.</string>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>Clipper verbindet sich im WLAN mit CutForTiktok auf deinem Mac.</string>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
+		<key>NSAllowsArbitraryLoads</key>
+		<true/>
+	</dict>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>de.bamberger.clipper.pair</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>clipper</string>
+			</array>
+		</dict>
+	</array>
+</dict>
+</plist>

@@ -1,0 +1,24 @@
+[project]
+name = "cutfortiktok"
+version = "0.1.0"
+description = "Add your description here"
+requires-python = ">=3.12"
+dependencies = [
+    "av<16",
+    "faster-whisper>=1.2.1",
+    "imageio-ffmpeg>=0.6.0",
+    "numpy>=2.5.4",
+    "opencv-python-headless<5",
+    "python-dotenv>=1.2.4",
+    "pyyaml>=6.0.3",
+    "requests>=2.34.2",
+    "segno>=1.6.6",
+    "typer>=0.27.3",
+]
+
+[project.scripts]
+cutfortiktok = "cutfortiktok:main"
+
+[build-system]
+requires = ["uv_build>=0.12.3,<0.13.0"]
+build-backend = "uv_build"

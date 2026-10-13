@@ -1,0 +1,244 @@
+<!doctype html><html lang="de"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>For You</title>
+<style>
+:root{--bg:#0c0c0f;--panel:#16161b;--panel2:#1d1d24;--line:#2a2a33;--fg:#ececf1;--mute:#8d8d9a;--acc:#fe2c55;--acc2:#25f4ee;--ok:#2ea043}
+*{box-sizing:border-box}
+body{font:14px/1.4 -apple-system,system-ui,sans-serif;background:var(--bg);color:var(--fg);margin:0}
+.top{position:sticky;top:0;z-index:20;background:rgba(12,12,15,.85);backdrop-filter:blur(12px);border-bottom:1px solid var(--line)}
+.nav{display:flex;align-items:center;gap:18px;padding:12px 20px;flex-wrap:wrap}
+.logo{font-weight:800;font-size:17px;letter-spacing:-.3px}.logo span{background:linear-gradient(90deg,var(--acc2),var(--acc));-webkit-background-clip:text;background-clip:text;color:transparent}
+.pages{display:flex;gap:4px;background:var(--panel);padding:4px;border-radius:999px}
+.pages a{padding:6px 14px;border-radius:999px;text-decoration:none;color:var(--mute);font-weight:600}
+.pages a.on{background:var(--fg);color:#000}
+#info{margin-left:auto;color:var(--mute);font-size:13px}
+.age{display:flex;gap:3px;flex-wrap:wrap}.age button{border:1px solid var(--line);background:var(--panel);color:var(--mute);border-radius:999px;padding:4px 9px;font:inherit;font-size:12px;font-weight:600;cursor:pointer}
+.age button.on{border-color:var(--acc2);color:var(--acc2)}
+.ms{position:relative}
+.ms>summary{list-style:none;cursor:pointer;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:7px 12px;user-select:none;font-weight:600}
+.ms>summary::-webkit-details-marker{display:none}
+.ms>summary::after{content:" ▾";color:var(--mute)}
+.ms .pan{position:absolute;z-index:30;top:calc(100% + 6px);right:0;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:8px;min-width:250px;max-height:60vh;overflow:auto;box-shadow:0 12px 40px rgba(0,0,0,.6)}
+.ms label{display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:7px;cursor:pointer}
+.ms label:hover{background:var(--panel2)}
+.ms .row{display:flex;gap:6px;margin-bottom:6px}
+.btn{background:var(--panel2);border:1px solid var(--line);color:var(--fg);border-radius:10px;padding:7px 12px;font:inherit;font-weight:700;cursor:pointer}
+main{max-width:1200px;margin:0 auto;padding:20px;display:grid;grid-template-columns:minmax(0,1fr) 260px;gap:24px}
+.stage{display:flex;flex-direction:column;gap:14px}
+.player{position:relative;aspect-ratio:16/9;background:#000;border-radius:16px;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.5)}
+.player video,.player img{width:100%;height:100%;object-fit:contain;display:block}
+.player .wait{position:absolute;inset:0;display:grid;place-items:center;background:rgba(0,0,0,.55);font-weight:700;gap:10px;align-content:center}
+.spin{width:34px;height:34px;border:3px solid #444;border-top-color:var(--acc2);border-radius:50%;animation:s 1s linear infinite;margin:auto}
+@keyframes s{to{transform:rotate(360deg)}}
+.pill{display:inline-block;padding:2px 9px;border-radius:999px;font-size:12px;font-weight:700;background:var(--panel2);border:1px solid var(--line);margin-right:4px}
+.pill.parts{background:#6e40c9;border-color:#6e40c9}
+.title{font-size:20px;font-weight:800;line-height:1.25}
+.meta{color:var(--mute)}
+.why{display:flex;flex-wrap:wrap;gap:6px}
+.why span{font-size:12px;color:var(--mute);background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:3px 8px}
+.why b{color:var(--fg)}
+.persp{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.persp .lbl{color:var(--mute);font-size:12px;margin-right:2px}
+.persp button{border:1px solid var(--line);background:var(--panel);color:var(--fg);border-radius:999px;padding:5px 11px;font:inherit;font-size:13px;font-weight:600;cursor:pointer}
+.persp button.on{background:var(--acc2);border-color:var(--acc2);color:#000}
+.persp button small{color:var(--mute);font-weight:500}.persp button.on small{color:#044}
+.persp button.busy{opacity:.6;cursor:wait}
+.decide{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.decide button{border:0;border-radius:14px;padding:16px;font:inherit;font-size:17px;font-weight:800;cursor:pointer;transition:transform .08s}
+.decide button:active{transform:scale(.97)}
+.no{background:var(--panel2);color:var(--fg);border:1px solid var(--line)!important}
+.yes{background:var(--acc);color:#fff}
+.keys{color:var(--mute);font-size:12px;text-align:center}
+kbd{background:var(--panel2);border:1px solid var(--line);border-radius:5px;padding:0 5px;font:12px ui-monospace,monospace}
+aside h3{font-size:13px;color:var(--mute);text-transform:uppercase;letter-spacing:.6px;margin:4px 0 10px}
+.up{display:flex;gap:10px;align-items:center;margin-bottom:10px}
+.up img{width:96px;height:54px;object-fit:cover;border-radius:8px;background:#000;flex:none}
+.up .t{font-weight:600;font-size:13px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.up .m{color:var(--mute);font-size:12px}
+.dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:#555;margin-right:4px}.dot.ok{background:var(--ok)}
+.stats{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin-top:16px;color:var(--mute);font-size:13px}
+.stats b{color:var(--fg)}
+.empty{text-align:center;color:var(--mute);padding:80px 0}
+@media (max-width:900px){main{grid-template-columns:1fr}aside{display:none}}
+</style>
+
+<div class="top"><div class="nav">
+  <div class="logo">Cut<span>ForTiktok</span></div>
+  <nav class="pages"><a href="/foryou" class="on">For You</a><a href="/edit">Edit</a><a href="/scheduler">Scheduler</a><a href="/">Post Selector</a></nav><a href="/pair" title="iPhone-App verbinden" style="text-decoration:none">📱</a>
+  <span id="info"></span>
+  <div class="age" id="age"></div>
+  <details class="ms" id="whoBox"><summary id="whoSum">Alle Streamer</summary>
+    <div class="pan"><div class="row"><button class="btn" id="whoAll">Alle</button><button class="btn" id="whoNone">Keine</button></div><div id="whoList"></div></div>
+  </details>
+</div></div>
+
+<main>
+  <section class="stage" id="stage"></section>
+  <aside>
+    <h3>Als Nächstes</h3><div id="next"></div>
+    <div class="stats" id="stats"></div>
+  </aside>
+</main>
+
+<script>
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+let feed = [], streamers = [], cur = null, decided = new Set(), undo = [], kept = 0, ignored = 0, nextSync = 0;
+let hidden = new Set();
+try { hidden = new Set(JSON.parse(localStorage.getItem('foryouHidden') || '[]')); } catch {}
+
+function ago(iso) {
+  const m = (Date.now() - new Date(iso)) / 60000;
+  if (m < 60) return Math.round(m) + ' min';
+  if (m < 1440) return Math.round(m / 60) + ' h';
+  return Math.round(m / 1440) + ' Tg';
+}
+
+// time filter: only clips of the last n minutes (0 = all)
+const AGES = [[0, 'Alle'], [15, '15 Min'], [60, '1 h'], [180, '3 h'], [360, '6 h'], [720, '12 h'], [1440, '24 h'], [2880, '2 Tage'], [4320, '3 Tage'], [10080, '7 Tage']];
+let age = 0;
+try { age = +localStorage.getItem('foryouAge') || 0; } catch {}
+function drawAge() {
+  $('age').innerHTML = AGES.map(([m, l]) => `<button data-age="${m}" class="${m === age ? 'on' : ''}">${l}</button>`).join('');
+}
+$('age').addEventListener('click', e => {
+  const b = e.target.closest('[data-age]'); if (!b) return;
+  age = +b.dataset.age; try { localStorage.setItem('foryouAge', age); } catch {}
+  drawAge(); cur = null; load();
+});
+drawAge();
+
+async function load() {
+  const j = await (await fetch('/api/foryou?hidden=' + encodeURIComponent([...hidden].join(',')) + (age ? '&age=' + age : ''))).json();
+  feed = j.clips.filter(c => !decided.has(c.id));
+  streamers = j.streamers; nextSync = j.next_sync || 0;
+  // keep the clip on screen until decided; just refresh its data (e.g. download finished)
+  const same = cur && feed.find(c => c.id === cur.id);
+  if (same) { const wasReady = cur.ready; cur = same; if (!wasReady && cur.ready) drawStage(); }
+  else { cur = feed[0] || null; drawStage(); }
+  drawSide(); drawWho();
+}
+
+function drawStage() {
+  if (!cur) { $('stage').innerHTML = '<div class="empty">🎉 Alles gesichtet.<br>Neue Clips kommen mit dem nächsten Scan.</div>'; return; }
+  const c = cur, w = c.why;
+  $('stage').innerHTML = `
+    <div class="player">${c.ready
+      ? `<video id="vid" src="/raw/${c.id}" autoplay controls playsinline></video>`
+      : `<img src="${esc(c.thumbnail || '')}"><div class="wait"><div class="spin"></div>wird geladen…</div>`}</div>
+    <div><div class="title">${esc(c.title)}</div>
+      <div class="meta">@${esc(c.streamer)} · ${c.views} Views · vor ${ago(c.created_at)} · ${Math.round(c.duration)}s
+        ${c.parts > 1 ? `<span class="pill parts">🔗 ${c.parts} Clips zusammengefügt</span>` : ''}</div></div>
+    <div class="why" title="Warum dieser Clip hier steht">
+      <span>Views <b>${Math.round(w.views * 100)}</b></span><span>für den Kanal <b>${Math.round(w.channel * 100)}</b></span>
+      <span>frisch <b>${Math.round(w.fresh * 100)}</b></span>
+      <span>Kanal: <b>${w.kept}</b> behalten / <b>${w.ignored}</b> ignoriert → ×${w.affinity}</span></div>
+    ${c.error ? `<div style="color:#f85149">${esc(c.error)}</div>` : ''}
+    <div class="persp" id="persp"></div>
+    <div class="decide"><button class="no" id="no">✕ Ignorieren</button><button class="yes" id="yes">✓ Behalten</button></div>
+    <div class="keys"><kbd>←</kbd> ignorieren · <kbd>→</kbd> behalten · <kbd>Leertaste</kbd> Pause · <kbd>Z</kbd> rückgängig</div>`;
+  $('no').onclick = () => decide('ignored');
+  $('yes').onclick = () => decide('kept');
+  const v = $('vid');
+  if (v) v.play().catch(() => { v.muted = true; v.play().catch(() => {}); });  // autoplay with sound may be blocked
+  view = null; persp = [];
+  loadPersp(c.id);
+}
+
+// ---------- other perspectives: clips of other channels at the same moment ----------
+let persp = [], view = null;  // view = perspective currently shown (null = the clip itself)
+const fmtS = s => `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, '0')}`;
+async function loadPersp(id) {
+  const list = await (await fetch(`/api/clip/${id}/perspectives`)).json();
+  if (cur?.id !== id) return;
+  persp = list; drawPersp();
+}
+function drawPersp() {
+  const el = $('persp');
+  if (!el) return;
+  if (!persp.length) { el.innerHTML = ''; return; }
+  el.innerHTML = `<span class="lbl">👀 Gleichzeitig:</span>
+    <button class="${view ? '' : 'on'}" data-p="">@${esc(cur.streamer)} <small>Original</small></button>`
+    + persp.map((p, i) => `<button class="${view?.id === p.id ? 'on' : ''}" data-p="${i}" title="${esc(p.title)}">@${esc(p.streamer)}
+      <small>${fmtS(p.from)}–${fmtS(p.to)}${p.ready ? '' : ' ⤓'}</small></button>`).join('');
+  el.querySelectorAll('button').forEach(b => b.onclick = () => switchTo(b.dataset.p === '' ? null : persp[+b.dataset.p], b));
+}
+async function switchTo(p, btn) {
+  const v = $('vid');
+  if (!v || (p?.id ?? null) === (view?.id ?? null)) return;
+  const mainT = v.currentTime - (view ? view.off : 0);  // position in the clip's own timeline
+  if (p && !p.ready) {
+    btn.classList.add('busy'); btn.querySelector('small').textContent = 'lädt…';
+    const r = await fetch(`/api/clip/${p.id}/fetch`, { method: 'POST', body: '{}' });
+    if (!r.ok) { btn.classList.remove('busy'); btn.querySelector('small').textContent = 'Fehler'; return; }
+    p.ready = true;
+  }
+  view = p;
+  const paused = v.paused;
+  v.src = '/raw/' + (p ? p.id : cur.id);
+  v.addEventListener('loadedmetadata', () => {
+    v.currentTime = Math.max(0, Math.min(v.duration - 0.1, mainT + (p ? p.off : 0)));
+    if (!paused) v.play().catch(() => {});
+  }, { once: true });
+  drawPersp();
+}
+
+function drawSide() {
+  const up = feed.filter(c => c.id !== cur?.id).slice(0, 6);
+  $('next').innerHTML = up.map(c => `<div class="up"><img src="${esc(c.thumbnail || '')}">
+    <div><div class="t">${esc(c.title)}</div><div class="m"><span class="dot ${c.ready ? 'ok' : ''}"></span>@${esc(c.streamer)} · ${c.views}</div></div></div>`).join('')
+    || '<div class="m" style="color:var(--mute)">—</div>';
+  $('stats').innerHTML = `Diese Sitzung: <b>${kept}</b> behalten · <b>${ignored}</b> ignoriert<br>${feed.length} Clips im Feed`;
+}
+
+async function decide(status) {
+  if (!cur) return;
+  const c = cur;
+  decided.add(c.id);
+  undo.push(c);
+  status === 'kept' ? kept++ : ignored++;
+  cur = feed.filter(x => !decided.has(x.id))[0] || null;
+  drawStage(); drawSide();
+  await fetch(`/api/clip/${c.id}/status`, { method: 'POST', body: JSON.stringify({ status }) });
+  load();  // re-rank: your decision changes the channel's weight
+}
+
+async function undoLast() {
+  const c = undo.pop();
+  if (!c) return;
+  await fetch(`/api/clip/${c.id}/status`, { method: 'POST', body: JSON.stringify({ status: 'new' }) });
+  decided.delete(c.id);
+  cur = null;
+  await load();
+  cur = feed.find(x => x.id === c.id) || cur;
+  drawStage(); drawSide();
+}
+
+document.addEventListener('keydown', e => {
+  if (e.target.matches('input,textarea')) return;
+  if (e.key === 'ArrowRight') { e.preventDefault(); decide('kept'); }
+  else if (e.key === 'ArrowLeft') { e.preventDefault(); decide('ignored'); }
+  else if (e.key === 'z' || e.key === 'Z') undoLast();
+  else if (e.key === ' ') { const v = $('vid'); if (v) { e.preventDefault(); v.paused ? v.play() : v.pause(); } }
+});
+
+// streamer filter
+function drawWho() {
+  const on = streamers.filter(s => !hidden.has(s));
+  $('whoSum').textContent = on.length === streamers.length ? 'Alle Streamer' : `${on.length} von ${streamers.length} Streamern`;
+  if (!$('whoBox').open) return;
+  $('whoList').innerHTML = streamers.map(s => `<label><input type="checkbox" value="${esc(s)}" ${hidden.has(s) ? '' : 'checked'}>@${esc(s)}</label>`).join('');
+}
+function whoChanged() { try { localStorage.setItem('foryouHidden', JSON.stringify([...hidden])); } catch {} cur = null; load(); }
+$('whoList').addEventListener('change', e => { e.target.checked ? hidden.delete(e.target.value) : hidden.add(e.target.value); whoChanged(); });
+$('whoBox').addEventListener('toggle', drawWho);
+$('whoAll').onclick = () => { hidden.clear(); whoChanged(); drawWho(); };
+$('whoNone').onclick = () => { hidden = new Set(streamers); whoChanged(); drawWho(); };
+document.addEventListener('click', e => { if ($('whoBox').open && !$('whoBox').contains(e.target)) $('whoBox').open = false; });
+
+setInterval(() => {
+  const s = Math.round(nextSync - Date.now() / 1000);
+  $('info').textContent = nextSync ? (s > 0 ? `nächster Scan in ${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}` : 'Scan läuft…') : '';
+}, 1000);
+load();
+setInterval(() => { if (!document.hidden) load(); }, 4000);  // downloads finishing, new clips
+</script>

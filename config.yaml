@@ -1,0 +1,50 @@
+# Channels come from accounts.txt (one twitch URL or login per line; only channels
+# that allow everyone to clip). Optional per-streamer extras can go here:
+streamers:
+  # - login: examplestreamer
+  #   permission_source: "Twitch panel: 'Clips erlaubt für alle'"
+  #   permission_checked_at: "2026-10-12"
+  #   hashtags: ["craftattack"]
+
+discover:
+  game_id: "27471"          # Minecraft
+  title_keywords: ["craft attack", "craftattack"]
+  language: de
+
+clips:
+  since: "2026-10-10"       # list all clips created since this date
+  only_game_id: "27471"     # Minecraft only; "" = any game
+  min_duration: 5
+  min_views: 0              # clips below this are hidden everywhere (0 = show all)
+  poll_minutes: 3           # live listener interval while the app runs
+  poll_window_hours: 24     # re-scan window each poll: catches late-indexed clips + keeps view counts fresh
+
+render:
+  width: 1080
+  height: 1920
+  cam_height: 640           # top area; game gets the rest
+  game_center_x: 0.5        # 0..1 horizontal focus of game crop
+  crf: 20
+  font: "Montserrat Black"   # from assets/fonts
+  font_size: 82
+  subs_y: 1300              # vertical center of subtitles (in game area, above TikTok UI)
+  highlight: "#FFE600"      # color of the word being spoken
+  title_secs: 3             # title card between facecam and game
+  title_size: 62
+
+transcribe:
+  language: de
+  model: large-v3-turbo      # or "small" for faster/lower quality
+  glossary_file: glossary.txt
+
+review:
+  port: 8080
+  lan: true                 # reachable in the WiFi for the iPhone app (token from /pair required)
+
+prefetch:
+  ahead: 12                 # prep channels (accounts.txt): prepare their top this many ranked clips
+  keep: 40                  # max untouched prepared clips kept on disk (oldest dropped)
+
+caption:
+  template: "{title} 🎮 Clip von @{streamer} (twitch.tv/{streamer})"
+  hashtags: ["minecraft", "craftattack", "gaming", "twitch"]

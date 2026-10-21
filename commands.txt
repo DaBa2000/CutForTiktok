@@ -1,3 +1,0 @@
-uv run cutfortiktok review
-
-cutfortiktok tiktok-auth

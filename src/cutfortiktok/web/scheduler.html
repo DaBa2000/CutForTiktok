@@ -1,16 +1,7 @@
 <!doctype html><html lang="de"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Scheduler</title>
+<link rel="stylesheet" href="/static/common.css">
 <style>
-:root{--bg:#0c0c0f;--panel:#16161b;--panel2:#1d1d24;--line:#2a2a33;--fg:#ececf1;--mute:#8d8d9a;--acc:#fe2c55;--acc2:#25f4ee;--ok:#2ea043;--warn:#d29922}
-*{box-sizing:border-box}
-body{font:14px/1.4 -apple-system,system-ui,sans-serif;background:var(--bg);color:var(--fg);margin:0}
-.top{position:sticky;top:0;z-index:20;background:rgba(12,12,15,.85);backdrop-filter:blur(12px);border-bottom:1px solid var(--line)}
-.nav{display:flex;align-items:center;gap:18px;padding:12px 20px}
-.logo{font-weight:800;font-size:17px;letter-spacing:-.3px}.logo span{background:linear-gradient(90deg,var(--acc2),var(--acc));-webkit-background-clip:text;background-clip:text;color:transparent}
-.pages{display:flex;gap:4px;background:var(--panel);padding:4px;border-radius:999px}
-.pages a{padding:6px 14px;border-radius:999px;text-decoration:none;color:var(--mute);font-weight:600}
-.pages a.on{background:var(--fg);color:#000}
-#info{margin-left:auto;color:var(--mute);font-size:13px}
 main{max-width:1100px;margin:0 auto;padding:16px 20px 60px;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.2fr);gap:24px}
 h2{font-size:15px;margin:6px 0 12px;display:flex;align-items:center;gap:8px}
 h2 small{color:var(--mute);font-weight:500}
@@ -51,18 +42,38 @@ input.iv{width:56px;text-align:center}
 dialog{background:#000;border:0;border-radius:14px;padding:0;max-width:min(420px,92vw)}
 dialog::backdrop{background:rgba(0,0,0,.75)}
 dialog video{display:block;width:100%;max-height:85vh}
+/* tier: how good a clip is (badge = select) */
+select.tier{appearance:none;-webkit-appearance:none;border:0;border-radius:999px;padding:2px 9px;font:inherit;font-size:11px;font-weight:800;cursor:pointer;color:#fff;background:#3a3a46}
+select.tier.insane{background:linear-gradient(90deg,#fe2c55,#a020f0)}select.tier.very_good{background:#e8890c}
+select.tier.good{background:var(--ok)}select.tier.filler{background:#5b5b66}
+.switch{display:flex;align-items:center;gap:8px;margin-left:auto;font-size:13px;font-weight:600;cursor:pointer;user-select:none}
+.switch i{width:38px;height:22px;border-radius:999px;background:#3a3a46;position:relative;transition:background .15s}
+.switch i::after{content:"";position:absolute;left:3px;top:3px;width:16px;height:16px;border-radius:50%;background:#fff;transition:left .15s}
+.switch.on i{background:var(--ok)}.switch.on i::after{left:19px}
+/* selected clips -> back to Edit (optionally joined into one) */
+.pick{display:flex;align-items:center;gap:6px;font-size:13px;font-weight:600;cursor:pointer;user-select:none}
+.pick input{width:16px;height:16px;accent-color:var(--acc)}
+.card.sel{border-color:var(--acc)}
+#back{position:sticky;top:8px;z-index:5;margin-bottom:12px;border-color:var(--acc)}
+.paused{color:var(--warn);font-size:12px;font-weight:600}
 @media (max-width:860px){main{grid-template-columns:1fr}.card{grid-template-columns:1fr}.nav,main{padding-left:12px;padding-right:12px}}
 </style>
 
 <div class="top"><div class="nav">
   <div class="logo">Cut<span>ForTiktok</span></div>
-  <nav class="pages"><a href="/foryou">For You</a><a href="/edit">Edit</a><a href="/scheduler" class="on">Scheduler</a><a href="/">Post Selector</a></nav><a href="/pair" title="iPhone-App verbinden" style="text-decoration:none">📱</a>
+  <nav class="pages"><a href="/foryou">For You</a><a href="/edit">Edit</a><a href="/scheduler" class="on">Scheduler</a><a href="/">Post Selector</a></nav><a href="/pair" class="phone" title="iPhone-App verbinden">📱</a>
   <span id="info"></span>
 </div></div>
 
 <main>
   <section>
-    <h2>⏰ Geplant <small id="plannedN"></small></h2>
+    <h2>⏰ Geplant <small id="plannedN"></small>
+      <span class="switch" id="auto" title="Aus: Pläne bleiben, die Extension postet nichts"><i></i><span>Automatisch posten</span></span></h2>
+    <div class="box row" style="margin-bottom:12px">
+      <span>Kein Post seit</span><input class="iv" id="fillAfter" type="number" min="0" step="15">
+      <span>Min → automatisch einen <b style="color:var(--ok)">gut</b>/<b style="color:#8d8d9a">Filler</b>-Clip posten</span>
+      <span class="hint" id="fillInfo" style="margin:0"></span></div>
+    <div class="paused" id="paused" hidden>⏸ Scheduler aus – geplante Posts werden nicht veröffentlicht, bis du ihn wieder einschaltest.</div>
     <div class="box" id="timeline"></div>
     <div class="hint">Die Browser-Extension postet zur geplanten Zeit (deutsche Zeit) selbst.
       Dafür müssen Mac (wach), Safari und diese App laufen und du bei TikTok eingeloggt sein.</div>
@@ -74,16 +85,17 @@ dialog video{display:block;width:100%;max-height:85vh}
         <select id="aDay"></select> ab <input class="tm" id="aTime" placeholder="HH:MM">
         alle <input class="iv" id="aEvery" type="number" min="5" value="60"> Min
         <button class="btn pri" id="aGo">Verteilen</button></div>
+      <div class="hint" style="margin-top:6px">Reihenfolge nach Tier: insane → sehr gut → gut → Filler (ohne Tier zuletzt). Danach mit ↑/↓ anpassen.</div>
       <div class="err" id="aErr"></div>
     </div>
+    <div class="box" id="back" hidden></div>
     <div class="cards" id="open"></div>
   </section>
 </main>
 <dialog id="dlg"><video id="vid" controls playsinline></video></dialog>
 
+<script src="/static/common.js"></script>
 <script>
-const $ = id => document.getElementById(id);
-const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 
 // ---------- German time ----------
 const TZ = 'Europe/Berlin';
@@ -120,11 +132,38 @@ const dayLabel = ts => days().find(x => x.d === bDate(ts))?.label
 const dayOptions = sel => days().map(x => `<option value="${x.d}" ${x.d === sel ? 'selected' : ''}>${x.label}</option>`).join('');
 
 // ---------- data ----------
-let queue = [], plans = {}, editing = null;
+let queue = [], plans = {}, editing = null, picked = [];  // picked: selected clips (back to Edit)
+const TIERS = [['', 'Tier?'], ['insane', '🔥 insane'], ['very_good', 'sehr gut'], ['good', 'gut'], ['filler', 'Filler']];
+const tierRank = t => { const i = TIERS.findIndex(x => x[0] === (t || '')); return i <= 0 ? TIERS.length : i; };
+const tierSelect = c => `<select class="tier ${esc(c.tier || '')}" data-tier="${c.id}" title="Wie gut ist der Clip?">${
+  TIERS.map(([v, l]) => `<option value="${v}" ${v === (c.tier || '') ? 'selected' : ''}>${l}</option>`).join('')}</select>`;
+let settings = { scheduler: true };
+function drawAuto() {
+  $('auto').classList.toggle('on', settings.scheduler);
+  $('paused').hidden = settings.scheduler;
+  if (document.activeElement !== $('fillAfter')) $('fillAfter').value = settings.fill_after;
+  const m = settings.last_posted ? Math.round((Date.now() - settings.last_posted) / 60000) : null;
+  $('fillInfo').textContent = !settings.fill_after ? '(0 = aus)'
+    : m == null ? '' : `letzter Post vor ${m < 60 ? m + ' Min' : Math.floor(m / 60) + ' h ' + (m % 60) + ' Min'}`;
+}
+$('fillAfter').onchange = async () => {
+  settings = await api('/api/settings', { fill_after: Math.max(0, +$('fillAfter').value || 0) }); drawAuto();
+};
+$('auto').onclick = async () => { settings = await api('/api/settings', { scheduler: !settings.scheduler }); drawAuto(); };
+document.addEventListener('change', async e => {
+  if (!e.target.matches('select.tier')) return;
+  const id = e.target.dataset.tier, tier = e.target.value || null;
+  e.target.className = 'tier ' + (tier || '');
+  await api(`/api/clip/${id}/tier`, { tier });
+  const c = queue.find(x => x.id === id); if (c) c.tier = tier;
+});
+
 async function load() {
+  fetch('/api/settings').then(r => r.json()).then(s => { settings = s; drawAuto(); });
   const [q, s] = await Promise.all([fetch('/api/queue').then(r => r.json()), fetch('/api/schedules').then(r => r.json())]);
   queue = q; plans = s || {};
-  if (!document.activeElement || !document.activeElement.matches('input,select')) draw();  // don't disturb typing
+  picked = picked.filter(id => queue.some(c => c.id === id && !plans[id]));
+  if (!document.activeElement || !document.activeElement.matches('input:not([type=checkbox]),select')) draw();  // don't disturb typing
 }
 async function plan(id, at) {
   const r = await fetch('/api/schedule/' + id, { method: 'POST', body: JSON.stringify({ at }) });
@@ -159,7 +198,7 @@ function draw() {
     html += `<div class="ev ${p.state} ${close ? 'close' : ''}"><div class="time">${bTime(p.at)}</div>
       <img src="${esc(c.thumbnail || '')}" alt="">
       <div class="i"><div class="t" title="${esc(p.title)}">${esc(p.title)}</div>
-        <div class="m">@${esc(p.streamer)} ${chip}${close ? ' · <span style="color:var(--warn)">weniger als 10 Min Abstand</span>' : ''}</div>
+        <div class="m">${byId[p.id] ? tierSelect(c) : ''} @${esc(p.streamer)} ${chip}${close ? ' · <span style="color:var(--warn)">weniger als 10 Min Abstand</span>' : ''}</div>
         ${p.error ? `<div class="err">${esc(p.error)}</div>` : ''}
         ${!byId[p.id] ? '<div class="err">nicht mehr in der Export-Liste</div>' : ''}
         ${editing === p.id ? planForm(p.id, p.at > Date.now() ? p.at : nextFree()) : ''}</div>
@@ -170,17 +209,51 @@ function draw() {
   });
   $('timeline').innerHTML = html ? html + '</div>' : '<div class="empty">Noch nichts geplant.<br>Rechts einen Clip planen oder automatisch verteilen.</div>';
 
-  $('open').innerHTML = open.map(c => `<div class="card">
+  drawBack();
+  $('open').innerHTML = open.map(c => `<div class="card ${picked.includes(c.id) ? 'sel' : ''}">
       <div class="thumb" data-play="${esc(c.video_url)}"><img src="${esc(c.thumbnail || '')}" alt=""></div>
       <div class="b"><div class="t" title="${esc(c.title)}">${esc(c.title)}</div>
-        <div class="m">@${esc(c.streamer)} · ${esc(c.filename)}</div>
+        <div class="m">${tierSelect(c)} @${esc(c.streamer)}</div>
         <div class="cap" title="${esc(c.caption)}">${esc(c.caption)}</div>
         ${planForm(c.id, nextFree())}
-        <div class="row"><a class="btn" href="/edit/${c.id}">Bearbeiten</a><button class="btn" data-posted="${c.id}">✓ schon gepostet</button></div>
+        <div class="row"><label class="pick" title="Auswählen (zurück in Edit, z. B. um sie zu verbinden)"><input type="checkbox" data-pick="${c.id}" ${picked.includes(c.id) ? 'checked' : ''}>
+Auswählen</label>
+          <button class="btn" data-back="${c.id}" title="Export zurücknehmen, wieder in der Edit-Liste">↩ Zurück in Edit</button><button class="btn" data-posted="${c.id}">✓ schon gepostet</button></div>
       </div></div>`).join('') || '<div class="box empty">Keine exportierten Clips offen.<br>Im Edit-Bereich Clips bearbeiten und exportieren.</div>';
   $('aDay').innerHTML = dayOptions($('aDay').value || bDate(nextFree()));
   if (!$('aTime').value) $('aTime').value = bTime(nextFree());
 }
+
+// ---------- selected clips -> back to Edit ----------
+function drawBack() {
+  $('back').hidden = !picked.length;
+  $('back').innerHTML = picked.length ? `<b>${picked.length} ausgewählt</b>
+    <div class="row" style="margin-top:6px"><button class="btn" data-backsel="0">↩ Zurück in Edit</button>
+      <button class="btn pri" data-backsel="1" ${picked.length < 2 ? 'disabled' : ''}>↩ Zurück in Edit & verbinden</button>
+      <button class="btn" id="cClear">Auswahl leeren</button></div>
+    <div class="hint">„Verbinden“ macht aus den Clips einen Clip (hintereinander, Reihenfolge wie im Stream) und öffnet ihn im Editor.
+      Der Titel kommt nur am Anfang.</div>
+    <div class="err" id="cErr"></div>` : '';
+}
+async function sendBack(ids, join) {
+  const r = await api('/api/unexport', { ids, join });
+  if (r.id) { location.href = '/edit/' + r.id; return; }  // joined: edit it as one clip
+  picked = picked.filter(x => !ids.includes(x));
+  load();
+}
+document.addEventListener('change', e => {
+  if (!e.target.matches('[data-pick]')) return;
+  const id = e.target.dataset.pick;
+  picked = e.target.checked ? [...picked, id] : picked.filter(x => x !== id);
+  draw();
+});
+document.addEventListener('click', async e => {
+  const t = e.target.closest('[data-back],[data-backsel],#cClear');
+  if (!t) return;
+  if (t.id === 'cClear') { picked = []; return draw(); }
+  try { await sendBack(t.dataset.back ? [t.dataset.back] : [...picked], t.dataset.backsel === '1'); }
+  catch (x) { if ($('cErr')) $('cErr').textContent = x.message; else alert(x.message); }
+});
 
 // ---------- actions ----------
 document.addEventListener('click', async e => {
@@ -222,7 +295,8 @@ $('aGo').onclick = async () => {
   let at = bToTs($('aDay').value, hhmm);
   if (at <= Date.now()) return $('aErr').textContent = 'Startzeit ist schon vorbei';
   const taken = Object.values(plans).map(p => p.at);
-  for (const c of queue.filter(c => !plans[c.id])) {
+  const todo = queue.filter(c => !plans[c.id]).sort((a, b) => tierRank(a.tier) - tierRank(b.tier));  // best first
+  for (const c of todo) {
     while (taken.some(x => Math.abs(x - at) < every * 60000 / 2)) at += every * 60000;  // skip already used slots
     await plan(c.id, at);
     taken.push(at);

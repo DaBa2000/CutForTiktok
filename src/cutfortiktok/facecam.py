@@ -137,16 +137,3 @@ def get_layout(streamer: str, video: Path) -> dict:
         save_layout(streamer, detect(video))
         d = load_layouts()
     return d[streamer]
-
-
-def preview(video: Path, layout: dict, out: Path) -> None:
-    cap = cv2.VideoCapture(str(video))
-    cap.set(cv2.CAP_PROP_POS_FRAMES, int(cap.get(cv2.CAP_PROP_FRAME_COUNT) / 2))
-    ok, frame = cap.read()
-    cap.release()
-    if ok and layout.get("cam"):
-        H, W = frame.shape[:2]
-        x, y, w, h = layout["cam"]
-        cv2.rectangle(frame, (int(x * W), int(y * H)), (int((x + w) * W), int((y + h) * H)), (0, 255, 0), 4)
-    if ok:
-        cv2.imwrite(str(out), frame)

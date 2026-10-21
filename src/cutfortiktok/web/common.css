@@ -1,0 +1,19 @@
+/* shared by the list pages (index, foryou, editlist, scheduler); the editor has its own compact look */
+:root{--bg:#0c0c0f;--panel:#16161b;--panel2:#1d1d24;--line:#2a2a33;--fg:#ececf1;--mute:#8d8d9a;--acc:#fe2c55;--acc2:#25f4ee;--ok:#2ea043;--warn:#d29922}
+*{box-sizing:border-box}
+body{font:14px/1.4 -apple-system,system-ui,sans-serif;background:var(--bg);color:var(--fg);margin:0}
+.top{position:sticky;top:0;z-index:20;background:rgba(12,12,15,.85);backdrop-filter:blur(12px);border-bottom:1px solid var(--line)}
+.nav{display:flex;align-items:center;gap:18px;padding:12px 20px;flex-wrap:wrap}
+.logo{font-weight:800;font-size:17px;letter-spacing:-.3px}.logo span{background:linear-gradient(90deg,var(--acc2),var(--acc));-webkit-background-clip:text;background-clip:text;color:transparent}
+.pages{display:flex;gap:4px;background:var(--panel);padding:4px;border-radius:999px}
+.pages a{padding:6px 14px;border-radius:999px;text-decoration:none;color:var(--mute);font-weight:600}
+.pages a.on{background:var(--fg);color:#000}
+.phone{text-decoration:none}
+#info{margin-left:auto;color:var(--mute);font-size:13px}
+/* streamer multiselect (details.ms) */
+.ms{position:relative}
+.ms>summary{list-style:none;cursor:pointer;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:7px 12px;user-select:none;font-weight:600}
+.ms>summary::-webkit-details-marker{display:none}
+.ms>summary::after{content:" ▾";color:var(--mute)}
+.ms label{display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:7px;cursor:pointer}
+.ms label:hover{background:var(--panel2)}

@@ -1,17 +1,19 @@
-"""Background work so opening a clip is instant. Priority:
-1. kept clips (For You "Behalten"): full preparation (download, facecam, transcript, first render)
-2. the next clips of the For You feed: download only
-3. channels marked `prep` in accounts.txt: full preparation of their best-ranked untouched clips
-Nothing else is prepared automatically. Untouched downloads are evicted again beyond `prefetch.keep`."""
+"""Background work, cheapest that keeps every page fast. Priority:
+1. kept clips (For You "Behalten"): full preparation (download, facecam, transcript) -> editor opens instantly
+2. the next clips of the For You feed: download only (merged clips are stitched here), no transcript
+3. pinned channels (📌 Post Selector): full preparation of their best-ranked untouched clips
+Nothing else is prepared. Untouched downloads are evicted again beyond `prefetch.keep`."""
 import threading
 import time
 import traceback
 from pathlib import Path
 
-from . import db, foryou, pipeline
+from . import db, foryou, pipeline, store
 from .config import load_config
 
-_prep: list[str] = []  # clips of `prep` channels currently queued
+PINNED_EVERY = 60  # s between re-ranking the pinned channels' clips
+_prep: list[str] = []  # clips of pinned channels to prepare
+_prep_at = 0.0
 _feed: list[str] = []
 _cond = threading.Condition()
 _failed: set[str] = set()
@@ -27,6 +29,9 @@ def set_feed(ids: list[str]) -> None:
 
 
 def wake() -> None:
+    """Something to do (kept clip, pins changed)."""
+    global _prep_at
+    _prep_at = 0
     with _cond:
         _cond.notify()
 
@@ -41,7 +46,12 @@ def _has_raw(row) -> bool:
 
 def _pick() -> tuple[str, str] | None:
     with db.conn() as c:
-        kept = c.execute("SELECT id FROM clips WHERE status='kept' AND subs IS NULL ORDER BY kept_at").fetchall()
+        grown = c.execute("SELECT id FROM clips WHERE regrow IS NOT NULL AND merged_into IS NULL").fetchall()
+        kept = c.execute("SELECT id FROM clips WHERE status='kept' AND subs IS NULL AND merged_into IS NULL "
+                         "ORDER BY kept_at").fetchall()
+    for r in grown:  # edited clip got new neighbouring clips: rebuild its video
+        if r["id"] not in _failed:
+            return "regrow", r["id"]
     for r in kept:
         if r["id"] not in _failed:
             return "prepare", r["id"]
@@ -49,11 +59,13 @@ def _pick() -> tuple[str, str] | None:
         row = db.get_clip(cid)
         if row and row["status"] == "new" and not _has_raw(row) and cid not in _failed:
             return "download", cid
-    global _prep
-    chans = pipeline.prep_channels()
-    if chans:
+    global _prep, _prep_at
+    if time.time() - _prep_at > PINNED_EVERY:
+        _prep_at = time.time()
+        pins = set(store.pins())
         n = load_config().get("prefetch", {}).get("ahead", 12)
-        _prep = [x["id"] for x in foryou.rank(limit=400) if x["streamer"] in chans][:n]
+        _prep = [x["id"] for x in foryou.rank(limit=400, hidden=None) if x["streamer"] in pins][:n] if pins else []
+    if _prep:
         for cid in _prep:
             row = db.get_clip(cid)
             if row and not row["subs"] and cid not in _failed:
@@ -96,13 +108,16 @@ def _loop() -> None:
             time.sleep(0.5)
         with pipeline.WORK_LOCK:
             row = db.get_clip(cid)
-            if not row or (kind == "prepare" and row["subs"]) or (kind == "download" and _has_raw(row)):
+            if not row or (kind == "prepare" and row["subs"]) or (kind == "download" and _has_raw(row)) \
+                    or (kind == "regrow" and not row["regrow"]):
                 continue
             _current = cid
             try:
                 t = time.time()
                 if kind == "prepare":
                     pipeline.prepare(cid)
+                elif kind == "regrow":
+                    pipeline.finish_grow(cid)
                 else:
                     pipeline.fetch_raw(row)
                 print(f"[prefetch] {kind} {row['streamer']}: {row['title'][:40]} ({time.time() - t:.0f}s)")

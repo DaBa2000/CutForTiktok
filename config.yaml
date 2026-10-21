@@ -42,7 +42,7 @@ review:
   lan: true                 # reachable in the WiFi for the iPhone app (token from /pair required)
 
 prefetch:
-  ahead: 12                 # prep channels (accounts.txt): prepare their top this many ranked clips
+  ahead: 12                 # pinned channels (📌): fully prepare their top this many ranked clips
   keep: 40                  # max untouched prepared clips kept on disk (oldest dropped)
 
 caption:

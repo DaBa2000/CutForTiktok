@@ -4,9 +4,7 @@ from contextlib import contextmanager
 
 from .config import paths
 
-# status: new (listed only) -> [kept (For You: keep, prepared with priority)] -> pending_review (edited)
-#         -> approved (exported) -> uploaded
-#         ignored (hidden by user), failed
+# status lifecycle: see clips.py
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS vods (id TEXT PRIMARY KEY, started_at TEXT);  -- started_at NULL = VOD gone
 CREATE TABLE IF NOT EXISTS clips (
@@ -33,13 +31,17 @@ CREATE TABLE IF NOT EXISTS clips (
 """
 
 
-MIGRATE = {"thumbnail": "TEXT", "game_id": "TEXT", "overlay_title": "TEXT", "cam_h": "INTEGER", "cam": "TEXT", "game_x": "REAL", "trim_start": "REAL", "trim_end": "REAL", "subs": "TEXT",
+MIGRATE = {"thumbnail": "TEXT", "game_id": "TEXT", "overlay_title": "TEXT", "cam_h": "INTEGER", "cam": "TEXT", "game_x": "REAL", "zoom": "REAL", "trim_start": "REAL", "trim_end": "REAL", "subs": "TEXT",
            # position in the stream (overlap detection) + merged groups (see merge.py)
            "vod_offset": "REAL", "video_id": "TEXT", "members": "TEXT", "merged_into": "TEXT",
            "kept_at": "TEXT",
            "happened_at": "TEXT",
            "switches": "TEXT",  # JSON [{"t": main time, "clip": other id | null, "off": other - main time}]
-           "cuts": "TEXT"}  # JSON [{"start": source time, "end": source time}] removed from the final timeline
+           "cuts": "TEXT",  # JSON [{"start": source time, "end": source time}] removed from the final timeline
+           "tier": "TEXT",  # Scheduler rating of an exported clip: insane | very_good | good | filler
+           "chain": "TEXT",  # joined clip: JSON [clip ids] its source video is made of, see clips.join
+           "segments": "TEXT",
+           "regrow": "TEXT"}  # edited clip that grew (merge.grow): {delta, old_raw, old_len} until finish_grow ran  # joined clip: JSON [{start, end, clip, streamer, cam, game_x}] layout per part
 
 
 _migrated = False
@@ -55,6 +57,11 @@ def _migrate(c: sqlite3.Connection) -> None:
         if _migrated:
             return
         c.executescript(SCHEMA)
+        try:  # readers never block writers (many threads use the db); persists in the file once set
+            c.execute("PRAGMA journal_mode=WAL")
+        except sqlite3.OperationalError:  # another process holds the db right now: next start
+            pass
+        c.execute("CREATE INDEX IF NOT EXISTS clips_status ON clips(status)")
         have = {r[1] for r in c.execute("PRAGMA table_info(clips)")}
         for col, typ in MIGRATE.items():
             if col not in have:
@@ -63,13 +70,14 @@ def _migrate(c: sqlite3.Connection) -> None:
                 except sqlite3.OperationalError as e:  # added by another process meanwhile
                     if "duplicate column" not in str(e):
                         raise
+        c.execute("CREATE INDEX IF NOT EXISTS clips_merged_into ON clips(merged_into)")
         c.commit()
         _migrated = True
 
 
 @contextmanager
 def conn():
-    c = sqlite3.connect(paths().db)
+    c = sqlite3.connect(paths().db, timeout=30)
     c.row_factory = sqlite3.Row
     _migrate(c)
     try:

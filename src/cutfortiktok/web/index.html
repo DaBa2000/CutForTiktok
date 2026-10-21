@@ -1,17 +1,8 @@
 <!doctype html><html lang="de"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Post Selector</title>
+<link rel="stylesheet" href="/static/common.css">
 <style>
-:root{--bg:#0c0c0f;--panel:#16161b;--panel2:#1d1d24;--line:#2a2a33;--fg:#ececf1;--mute:#8d8d9a;--acc:#fe2c55;--acc2:#25f4ee;--ok:#2ea043}
-*{box-sizing:border-box}
-body{font:14px/1.4 -apple-system,system-ui,sans-serif;background:var(--bg);color:var(--fg);margin:0}
 a{color:inherit}
-.top{position:sticky;top:0;z-index:20;background:rgba(12,12,15,.85);backdrop-filter:blur(12px);border-bottom:1px solid var(--line)}
-.nav{display:flex;align-items:center;gap:18px;padding:12px 20px}
-.logo{font-weight:800;font-size:17px;letter-spacing:-.3px}.logo span{background:linear-gradient(90deg,var(--acc2),var(--acc));-webkit-background-clip:text;background-clip:text;color:transparent}
-.pages{display:flex;gap:4px;background:var(--panel);padding:4px;border-radius:999px}
-.pages a{padding:6px 14px;border-radius:999px;text-decoration:none;color:var(--mute);font-weight:600}
-.pages a.on{background:var(--fg);color:#000}
-#info{margin-left:auto;color:var(--mute);font-size:13px}
 .filters{display:flex;flex-wrap:wrap;gap:10px;align-items:center;padding:0 20px 12px}
 .ctl{display:flex;align-items:center;gap:6px;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:4px 6px 4px 10px}
 .ctl label{color:var(--mute);font-size:12px}
@@ -23,13 +14,7 @@ a{color:inherit}
 .chips button.on{border-color:var(--acc2);color:var(--acc2)}
 .btn{background:var(--panel);border:1px solid var(--line);color:var(--fg);border-radius:10px;padding:7px 12px;font:inherit;font-weight:600;cursor:pointer}
 .btn:hover{border-color:#444}
-.ms{position:relative}
-.ms>summary{list-style:none;cursor:pointer;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:7px 12px;user-select:none;font-weight:600}
-.ms>summary::-webkit-details-marker{display:none}
-.ms>summary::after{content:" ▾";color:var(--mute)}
 .ms .pan{position:absolute;z-index:30;top:calc(100% + 6px);left:0;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:8px;min-width:250px;max-height:60vh;overflow:auto;box-shadow:0 12px 40px rgba(0,0,0,.6)}
-.ms label{display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:7px;cursor:pointer}
-.ms label:hover{background:var(--panel2)}
 .ms label span{margin-left:auto;color:var(--mute);font-size:12px}
 .ms .row{display:flex;gap:6px;margin-bottom:6px}.ms .row button{flex:1}
 main{padding:8px 20px 40px}
@@ -66,7 +51,7 @@ select.sel{background:var(--panel);border:1px solid var(--line);color:var(--fg);
 <div class="top">
   <div class="nav">
     <div class="logo">Cut<span>ForTiktok</span></div>
-    <nav class="pages"><a href="/foryou">For You</a><a href="/edit">Edit</a><a href="/scheduler">Scheduler</a><a href="/" class="on">Post Selector</a></nav><a href="/pair" title="iPhone-App verbinden" style="text-decoration:none">📱</a>
+    <nav class="pages"><a href="/foryou">For You</a><a href="/edit">Edit</a><a href="/scheduler">Scheduler</a><a href="/" class="on">Post Selector</a></nav><a href="/pair" class="phone" title="iPhone-App verbinden">📱</a>
     <span id="info"></span>
   </div>
   <div class="filters">
@@ -84,9 +69,8 @@ select.sel{background:var(--panel);border:1px solid var(--line);color:var(--fg);
 </div>
 <main id="main"></main>
 
+<script src="/static/common.js"></script>
 <script>
-const $ = id => document.getElementById(id);
-const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const LABEL = { new: 'neu', pending_review: 'bearbeitet', failed: 'Fehler' };
 let clips = [], seen = null, fresh = new Set(), prefetching = null, rendering = new Set();
 let streamers = [], hidden = new Set(), nextSync = 0, pins = [], used = {};
@@ -97,8 +81,8 @@ window.addEventListener('hashchange', () => { scrollTo(0, 0); draw(); });
 // filters survive reloads
 const PREF = 'selectorFilters';
 let F = { mode: 'new', n: 5, t: 60, order: 'recent' };
-try { const p = JSON.parse(localStorage.getItem(PREF) || '{}'); F = { ...F, ...p }; hidden = new Set(p.hidden || []); } catch {}
-function savePrefs() { try { localStorage.setItem(PREF, JSON.stringify({ ...F, hidden: [...hidden] })); } catch {} }
+try { const { hidden: _, ...p } = JSON.parse(localStorage.getItem(PREF) || '{}'); F = { ...F, ...p }; } catch {}
+function savePrefs() { try { localStorage.setItem(PREF, JSON.stringify(F)); } catch {} }
 
 
 // ---------- streamer multiselect (stores the unchecked ones, so new streamers show up by default) ----------
@@ -115,11 +99,12 @@ const changed = () => { savePrefs(); draw(); };
 $('whoList').addEventListener('change', e => {
   if (e.target.type !== 'checkbox') return;
   e.target.checked ? hidden.delete(e.target.value) : hidden.add(e.target.value);
-  changed();
+  whoChanged();
 });
 $('whoBox').addEventListener('toggle', drawWho);
-$('whoAll').onclick = () => { hidden.clear(); changed(); drawWho(); };
-$('whoNone').onclick = () => { hidden = new Set(streamers); changed(); drawWho(); };
+function whoChanged() { saveHidden('selector', hidden); draw(); }
+$('whoAll').onclick = () => { hidden.clear(); whoChanged(); drawWho(); };
+$('whoNone').onclick = () => { hidden = new Set(streamers); whoChanged(); drawWho(); };
 document.addEventListener('click', e => { if ($('whoBox').open && !$('whoBox').contains(e.target)) $('whoBox').open = false; });
 
 // ---------- mode / n / t ----------
@@ -152,7 +137,7 @@ async function load() {
   rendering = new Set(j.rendering || []);
   streamers = j.streamers;
   nextSync = j.next_sync || 0;
-  pins = j.pins || []; used = j.used || {};
+  pins = j.pins || []; used = j.used || {}; hidden = serverHidden(j, hidden);
   draw();
 }
 

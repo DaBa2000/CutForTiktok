@@ -1,25 +1,10 @@
 <!doctype html><html lang="de"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>For You</title>
+<link rel="stylesheet" href="/static/common.css">
 <style>
-:root{--bg:#0c0c0f;--panel:#16161b;--panel2:#1d1d24;--line:#2a2a33;--fg:#ececf1;--mute:#8d8d9a;--acc:#fe2c55;--acc2:#25f4ee;--ok:#2ea043}
-*{box-sizing:border-box}
-body{font:14px/1.4 -apple-system,system-ui,sans-serif;background:var(--bg);color:var(--fg);margin:0}
-.top{position:sticky;top:0;z-index:20;background:rgba(12,12,15,.85);backdrop-filter:blur(12px);border-bottom:1px solid var(--line)}
-.nav{display:flex;align-items:center;gap:18px;padding:12px 20px;flex-wrap:wrap}
-.logo{font-weight:800;font-size:17px;letter-spacing:-.3px}.logo span{background:linear-gradient(90deg,var(--acc2),var(--acc));-webkit-background-clip:text;background-clip:text;color:transparent}
-.pages{display:flex;gap:4px;background:var(--panel);padding:4px;border-radius:999px}
-.pages a{padding:6px 14px;border-radius:999px;text-decoration:none;color:var(--mute);font-weight:600}
-.pages a.on{background:var(--fg);color:#000}
-#info{margin-left:auto;color:var(--mute);font-size:13px}
 .age{display:flex;gap:3px;flex-wrap:wrap}.age button{border:1px solid var(--line);background:var(--panel);color:var(--mute);border-radius:999px;padding:4px 9px;font:inherit;font-size:12px;font-weight:600;cursor:pointer}
 .age button.on{border-color:var(--acc2);color:var(--acc2)}
-.ms{position:relative}
-.ms>summary{list-style:none;cursor:pointer;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:7px 12px;user-select:none;font-weight:600}
-.ms>summary::-webkit-details-marker{display:none}
-.ms>summary::after{content:" ▾";color:var(--mute)}
 .ms .pan{position:absolute;z-index:30;top:calc(100% + 6px);right:0;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:8px;min-width:250px;max-height:60vh;overflow:auto;box-shadow:0 12px 40px rgba(0,0,0,.6)}
-.ms label{display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:7px;cursor:pointer}
-.ms label:hover{background:var(--panel2)}
 .ms .row{display:flex;gap:6px;margin-bottom:6px}
 .btn{background:var(--panel2);border:1px solid var(--line);color:var(--fg);border-radius:10px;padding:7px 12px;font:inherit;font-weight:700;cursor:pointer}
 main{max-width:1200px;margin:0 auto;padding:20px;display:grid;grid-template-columns:minmax(0,1fr) 260px;gap:24px}
@@ -33,9 +18,8 @@ main{max-width:1200px;margin:0 auto;padding:20px;display:grid;grid-template-colu
 .pill.parts{background:#6e40c9;border-color:#6e40c9}
 .title{font-size:20px;font-weight:800;line-height:1.25}
 .meta{color:var(--mute)}
-.why{display:flex;flex-wrap:wrap;gap:6px}
-.why span{font-size:12px;color:var(--mute);background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:3px 8px}
-.why b{color:var(--fg)}
+.excl{background:none;border:1px solid var(--line);color:var(--mute);border-radius:999px;padding:1px 8px;font:inherit;font-size:12px;cursor:pointer;margin-left:2px}
+.excl:hover{color:#f85149;border-color:#f85149}
 .persp{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
 .persp .lbl{color:var(--mute);font-size:12px;margin-right:2px}
 .persp button{border:1px solid var(--line);background:var(--panel);color:var(--fg);border-radius:999px;padding:5px 11px;font:inherit;font-size:13px;font-weight:600;cursor:pointer}
@@ -63,7 +47,7 @@ aside h3{font-size:13px;color:var(--mute);text-transform:uppercase;letter-spacin
 
 <div class="top"><div class="nav">
   <div class="logo">Cut<span>ForTiktok</span></div>
-  <nav class="pages"><a href="/foryou" class="on">For You</a><a href="/edit">Edit</a><a href="/scheduler">Scheduler</a><a href="/">Post Selector</a></nav><a href="/pair" title="iPhone-App verbinden" style="text-decoration:none">📱</a>
+  <nav class="pages"><a href="/foryou" class="on">For You</a><a href="/edit">Edit</a><a href="/scheduler">Scheduler</a><a href="/">Post Selector</a></nav><a href="/pair" class="phone" title="iPhone-App verbinden">📱</a>
   <span id="info"></span>
   <div class="age" id="age"></div>
   <details class="ms" id="whoBox"><summary id="whoSum">Alle Streamer</summary>
@@ -79,12 +63,10 @@ aside h3{font-size:13px;color:var(--mute);text-transform:uppercase;letter-spacin
   </aside>
 </main>
 
+<script src="/static/common.js"></script>
 <script>
-const $ = id => document.getElementById(id);
-const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 let feed = [], streamers = [], cur = null, decided = new Set(), undo = [], kept = 0, ignored = 0, nextSync = 0;
-let hidden = new Set();
-try { hidden = new Set(JSON.parse(localStorage.getItem('foryouHidden') || '[]')); } catch {}
+let hidden = new Set();  // from the server (shared with the iPhone app)
 
 function ago(iso) {
   const m = (Date.now() - new Date(iso)) / 60000;
@@ -108,8 +90,9 @@ $('age').addEventListener('click', e => {
 drawAge();
 
 async function load() {
-  const j = await (await fetch('/api/foryou?hidden=' + encodeURIComponent([...hidden].join(',')) + (age ? '&age=' + age : ''))).json();
+  const j = await (await fetch('/api/foryou' + (age ? '?age=' + age : ''))).json();
   feed = j.clips.filter(c => !decided.has(c.id));
+  hidden = serverHidden(j, hidden);
   streamers = j.streamers; nextSync = j.next_sync || 0;
   // keep the clip on screen until decided; just refresh its data (e.g. download finished)
   const same = cur && feed.find(c => c.id === cur.id);
@@ -120,18 +103,14 @@ async function load() {
 
 function drawStage() {
   if (!cur) { $('stage').innerHTML = '<div class="empty">🎉 Alles gesichtet.<br>Neue Clips kommen mit dem nächsten Scan.</div>'; return; }
-  const c = cur, w = c.why;
+  const c = cur;
   $('stage').innerHTML = `
     <div class="player">${c.ready
       ? `<video id="vid" src="/raw/${c.id}" autoplay controls playsinline></video>`
       : `<img src="${esc(c.thumbnail || '')}"><div class="wait"><div class="spin"></div>wird geladen…</div>`}</div>
     <div><div class="title">${esc(c.title)}</div>
-      <div class="meta">@${esc(c.streamer)} · ${c.views} Views · vor ${ago(c.created_at)} · ${Math.round(c.duration)}s
+      <div class="meta">@${esc(c.streamer)} <button class="excl" id="excl" title="@${esc(c.streamer)} in For You und Post Selector ausblenden (Streamer-Filter)">🚫 ignorieren</button> · ${c.views} Views · vor ${ago(c.created_at)} · ${Math.round(c.duration)}s
         ${c.parts > 1 ? `<span class="pill parts">🔗 ${c.parts} Clips zusammengefügt</span>` : ''}</div></div>
-    <div class="why" title="Warum dieser Clip hier steht">
-      <span>Views <b>${Math.round(w.views * 100)}</b></span><span>für den Kanal <b>${Math.round(w.channel * 100)}</b></span>
-      <span>frisch <b>${Math.round(w.fresh * 100)}</b></span>
-      <span>Kanal: <b>${w.kept}</b> behalten / <b>${w.ignored}</b> ignoriert → ×${w.affinity}</span></div>
     ${c.error ? `<div style="color:#f85149">${esc(c.error)}</div>` : ''}
     <div class="persp" id="persp"></div>
     <div class="decide"><button class="no" id="no">✕ Ignorieren</button><button class="yes" id="yes">✓ Behalten</button></div>
@@ -221,6 +200,15 @@ document.addEventListener('keydown', e => {
   else if (e.key === ' ') { const v = $('vid'); if (v) { e.preventDefault(); v.paused ? v.play() : v.pause(); } }
 });
 
+// "ignorieren" next to the streamer name: out of the filter of For You + Post Selector
+document.addEventListener('click', async e => {
+  if (e.target.id !== 'excl' || !cur) return;
+  const s = cur.streamer;
+  if (!confirm(`@${s} ausblenden? (in For You und Post Selector, im Streamer-Filter wieder einschaltbar)`)) return;
+  await api('/api/filters/exclude', { streamer: s });
+  hidden.add(s); drawWho(); cur = null; load();
+});
+
 // streamer filter
 function drawWho() {
   const on = streamers.filter(s => !hidden.has(s));
@@ -228,7 +216,7 @@ function drawWho() {
   if (!$('whoBox').open) return;
   $('whoList').innerHTML = streamers.map(s => `<label><input type="checkbox" value="${esc(s)}" ${hidden.has(s) ? '' : 'checked'}>@${esc(s)}</label>`).join('');
 }
-function whoChanged() { try { localStorage.setItem('foryouHidden', JSON.stringify([...hidden])); } catch {} cur = null; load(); }
+async function whoChanged() { await saveHidden('foryou', hidden); cur = null; load(); }
 $('whoList').addEventListener('change', e => { e.target.checked ? hidden.delete(e.target.value) : hidden.add(e.target.value); whoChanged(); });
 $('whoBox').addEventListener('toggle', drawWho);
 $('whoAll').onclick = () => { hidden.clear(); whoChanged(); drawWho(); };

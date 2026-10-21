@@ -1,0 +1,16 @@
+[project]
+name = "selenium-poster"
+version = "0.1.0"
+description = "Manual fallback: post exported clips from the Scheduler queue to TikTok with Selenium"
+requires-python = ">=3.12"
+dependencies = [
+    "requests>=2.34.2",
+    "selenium>=4.40",
+]
+
+[project.scripts]
+poster = "selenium_poster:main"
+
+[build-system]
+requires = ["uv_build>=0.12.3,<0.13.0"]
+build-backend = "uv_build"

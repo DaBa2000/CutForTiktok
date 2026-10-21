@@ -1,5 +1,6 @@
 import hashlib
 import json
+import os
 import re
 import shutil
 import threading
@@ -29,17 +30,12 @@ def allowlist() -> dict[str, dict]:
             line = line.strip()
             if not line or line.startswith("#"):
                 continue
-            url, *flags = line.split()  # "https://www.twitch.tv/name prep" -> clips prepared automatically
+            url = line.split()[0]
             login = re.sub(r"^(https?://)?(www\.)?twitch\.tv/", "", url).strip("/").split("/")[0].lower()
-            out[login] = {**extra.get(login, {"login": login}), "prep": "prep" in flags}
+            out[login] = extra.get(login, {"login": login})
     for login, s in extra.items():
         out.setdefault(login, s)
     return out
-
-
-def prep_channels() -> set[str]:
-    """Channels marked `prep` in accounts.txt: their clips are prepared without asking."""
-    return {l for l, s in allowlist().items() if s.get("prep")}
 
 
 def make_caption(title: str, streamer: str, extra_tags: list[str] | None = None) -> str:
@@ -168,7 +164,7 @@ def user_is_waiting() -> bool:
     return _user_waiting > 0
 
 
-# queued background exports (priority: interactive > export jobs > prefetch)
+# queued background exports, see clips.export (priority: interactive > export jobs > prefetch)
 exports_pending = 0
 
 
@@ -196,7 +192,8 @@ def fetch_raw(row) -> Path:
         row = db.get_clip(row["id"])
         if row["raw_path"] and Path(row["raw_path"]).exists():
             return Path(row["raw_path"])
-        raw = merge.build(row) if row["members"] else download_clip(row["id"], row["url"])
+        raw = (merge.build(row) if row["members"] else build_joined(row["id"], json.loads(row["chain"])) if row["chain"]
+               else download_clip(row["id"], row["url"]))
         db.update_clip(row["id"], raw_path=str(raw))
         return raw
 
@@ -223,14 +220,6 @@ def protected() -> set[str]:
     return keep
 
 
-def ensure_media(clip_id: str) -> None:
-    """Edited clip whose videos were dropped (after export): fetch source again + render preview."""
-    row = db.get_clip(clip_id)
-    fetch_raw(row)
-    if not row["out_path"] or not Path(row["out_path"]).exists():
-        render_clip(clip_id, preset="fast")
-
-
 def drop_media(clip_id: str) -> None:
     """Delete source + preview video, keep the edit state (exported / posted / ignored clips)."""
     row = db.get_clip(clip_id)
@@ -252,7 +241,7 @@ def cleanup_media() -> int:
 
 
 def prepare(clip_id: str) -> None:
-    """Download, detect facecam, transcribe; store editable state; render a first version.
+    """Download, detect facecam, transcribe; store editable state.
     Status is left unchanged (also used for background prefetching)."""
     row = db.get_clip(clip_id)
     raw = fetch_raw(row)
@@ -263,14 +252,45 @@ def prepare(clip_id: str) -> None:
     row = db.get_clip(clip_id)  # title may have been changed in the Edit list while this ran
     db.update_clip(
         clip_id, cam=json.dumps(layout.get("cam")), cam_h=layout.get("cam_h"),
-        game_x=layout.get("game_x", load_config()["render"]["game_center_x"]),
+        game_x=layout.get("game_x", load_config()["render"]["game_center_x"]), zoom=layout.get("zoom", 0.0),
         trim_start=0.0, trim_end=round(dur, 2),
         subs=json.dumps([{"words": ch} for ch in chunk_words(words)], ensure_ascii=False),
         overlay_title=row["overlay_title"] or row["title"],
         caption=row["caption"] or make_caption(row["overlay_title"] or row["title"], row["streamer"], tags),
     )
-    render_clip(clip_id, preset="fast")
     db.update_clip(clip_id, error=None)
+
+
+def finish_grow(clip_id: str) -> None:
+    """Edited clip that grew into a bigger group (merge.grow): build the new video, fix the offset of the old part
+    by audio, shift the edit state by the correction and add subtitles for the new parts."""
+    row = db.get_clip(clip_id)
+    g = json.loads(row["regrow"])
+    old = paths().work / f"{clip_id}.old.mp4"  # building deletes member downloads (the old video may be one)
+    if g.get("old_raw") and Path(g["old_raw"]).exists() and not old.exists():
+        os.link(g["old_raw"], old)
+    raw = fetch_raw(row)
+    _, _, dur = probe(raw)
+    delta, old_len = g["delta"], g["old_len"]
+    if old.exists():  # exact place + real length of the old video inside the new one
+        old_len = probe(old)[2] or old_len
+        delta = merge.locate(raw, old, g["delta"], old_len)
+        old.unlink()
+    d = round(delta - g["delta"], 3)
+    sh = lambda t: round(t + d, 3)
+    subs = [{"words": [{**w, "start": sh(w["start"]), "end": sh(w["end"])} for w in ch["words"]]}
+            for ch in json.loads(row["subs"] or "[]")]
+    a, b = delta, delta + old_len  # covered by the old video (and its subtitles)
+    words = [w for w in transcribe(raw, paths().work) if not (a - .2 <= w["start"] < b + .2)]
+    subs = sorted(subs + [{"words": ch} for ch in chunk_words(words)], key=lambda ch: ch["words"][0]["start"])
+    db.update_clip(
+        clip_id, subs=json.dumps(subs, ensure_ascii=False), regrow=None, error=None,
+        # trim reached the old start/end -> include the new parts there, else keep the chosen range
+        trim_start=0.0 if sh(row["trim_start"] or 0) <= a + 0.5 else sh(row["trim_start"]),
+        trim_end=round(dur, 2) if sh(row["trim_end"] or dur) >= b - 0.5 else min(round(dur, 2), sh(row["trim_end"])),
+        cuts=json.dumps([{"start": sh(c["start"]), "end": sh(c["end"])} for c in json.loads(row["cuts"] or "[]")]),
+        switches=json.dumps([{**x, "t": sh(x["t"]), "off": x["off"] - d} for x in json.loads(row["switches"] or "[]")]))
+    print(f"[merge] {clip_id}: Video neu gebaut, alter Teil ab {delta:.2f}s")
 
 
 def effective_render(cam_h: int | None) -> dict:
@@ -326,23 +346,28 @@ def _without_cuts(segs: list[tuple[float, float, dict | None]], cuts: list[dict]
     return [(a, b, s) for a, b, s in out if b - a > .05]
 
 
-def _render_switched(row, segs, out: Path, r: dict, ts: float, te: float, preset: str) -> None:
+def _render_switched(row, segs, out: Path, r: dict, ts: float, te: float, preset: str, title: str | None) -> None:
     p = paths()
     parts, chunks, credits = [], [], []
     main_chunks = [c["words"] for c in json.loads(row["subs"] or "[]")]
     out_t = 0.0
     for i, (a, b, s) in enumerate(segs):
         part = p.work / f"{row['id']}.seg{i}.mp4"
-        if s is None:
+        if s and "part" in s:  # joined clip: this part keeps its own clip's facecam layout + credit
+            render(Path(row["raw_path"]), part, s["part"]["cam"], None, r=r, game_x=s["part"]["game_x"], zoom=row["zoom"],
+                   trim=(a, b), preset="ultrafast")
+            source_chunks = [ch for ch in main_chunks if a <= ch[0]["start"] < b]
+            name = s["part"]["streamer"]
+        elif s is None:
             render(Path(row["raw_path"]), part, json.loads(row["cam"] or "null"), None, r=r,
-                   game_x=row["game_x"], trim=(a, b), preset="ultrafast")
+                   game_x=row["game_x"], zoom=row["zoom"], trim=(a, b), preset="ultrafast")
             source_chunks = [ch for ch in main_chunks if a <= ch[0]["start"] < b]
             name = row["streamer"]
         else:
             o = db.get_clip(s["clip"])
             oraw = fetch_raw(o)
             lay = facecam.get_layout(o["streamer"], oraw)
-            render(oraw, part, lay.get("cam"), None, r=r, game_x=lay.get("game_x"),
+            render(oraw, part, lay.get("cam"), None, r=r, game_x=lay.get("game_x"), zoom=row["zoom"],
                    trim=(a + s["off"], b + s["off"]), preset="ultrafast")
             words = [{**w, "start": w["start"] - s["off"], "end": w["end"] - s["off"]}
                      for w in transcribe(oraw, p.work)]
@@ -359,7 +384,7 @@ def _render_switched(row, segs, out: Path, r: dict, ts: float, te: float, preset
         parts.append(part)
         out_t += b - a
     ass = p.work / f"{row['id']}.ass"
-    build_ass(chunks, ass, duration=out_t, render=r, title=row["overlay_title"], credits=credits)
+    build_ass(chunks, ass, duration=out_t, render=r, title=title, credits=credits)
     cmd = [FFMPEG, "-y"]
     for f in parts:
         cmd += ["-i", str(f)]
@@ -373,31 +398,36 @@ def _render_switched(row, segs, out: Path, r: dict, ts: float, te: float, preset
         f.unlink(missing_ok=True)
 
 
-def render_clip(clip_id: str, preset: str = "medium") -> Path:
-    """Render from the clip's stored edit state."""
+def render_clip(clip_id: str, preset: str = "medium", title: str | None = None) -> Path:
+    """Render from the clip's stored edit state. title: overlay title instead of the clip's own ("" = none)."""
     row = db.get_clip(clip_id)
+    title = row["overlay_title"] if title is None else title
     p = paths()
     raw = Path(row["raw_path"])
     out = p.out / f"{clip_id}.mp4"
     r = effective_render(row["cam_h"])
     ts, te = row["trim_start"] or 0.0, row["trim_end"]
-    segs = _segments(row, ts, te)
+    if row["segments"]:  # joined clip: one segment per part
+        segs = [(max(a, ts), min(b, te), {"part": p}) for p in json.loads(row["segments"])
+                for a, b in [(p["start"], p["end"])] if min(b, te) > max(a, ts)]
+    else:
+        segs = _segments(row, ts, te)
     cuts = json.loads(row["cuts"] or "[]")
     segs = _without_cuts(segs, cuts)
     if not segs:
         raise ValueError("Der gesamte Ausschnitt wurde entfernt")
     if cuts or any(s for _, _, s in segs):  # perspective switches or cut-out ranges
-        _render_switched(row, segs, out, r, ts, te, preset)
+        _render_switched(row, segs, out, r, ts, te, preset, title)
         db.update_clip(clip_id, out_path=str(out))
         return out
     ass = p.work / f"{clip_id}.ass"
     build_ass(
         [c["words"] for c in json.loads(row["subs"] or "[]")], ass,
         offset=ts, duration=te - ts, render=r,
-        title=row["overlay_title"], credit=f"@{row['streamer']}",
+        title=title, credit=f"@{row['streamer']}",
     )
     render(raw, out, json.loads(row["cam"] or "null"), ass, r=r,
-           game_x=row["game_x"], trim=(ts, te), preset=preset)
+           game_x=row["game_x"], zoom=row["zoom"], trim=(ts, te), preset=preset)
     db.update_clip(clip_id, out_path=str(out))
     return out
 
@@ -441,3 +471,28 @@ def export_clip(clip_id: str) -> Path:
     db.update_clip(clip_id, status="approved", error=None)
     drop_media(clip_id)  # only the exported file is kept (until posted)
     return dst
+
+
+def build_joined(clip_id: str, ids: list[str]) -> Path:
+    """Source video of a joined clip (Edit "Clips verbinden"): the clips' trim ranges one after another,
+    scaled to the first clip's size."""
+    rows = [db.get_clip(i) for i in ids]
+    files = [fetch_raw(r) for r in rows]
+    w, h, _ = probe(files[0])
+    fc = []
+    for i, r in enumerate(rows):
+        ts, te = r["trim_start"] or 0.0, r["trim_end"]
+        fc.append(f"[{i}:v]trim=start={ts:.3f}:end={te:.3f},setpts=PTS-STARTPTS,scale={w}:{h}:force_original_aspect_ratio=decrease,"
+                  f"pad={w}:{h}:-1:-1,setsar=1,fps=60,format=yuv420p[v{i}];"
+                  f"[{i}:a]atrim=start={ts:.3f}:end={te:.3f},asetpts=PTS-STARTPTS,aresample=48000[a{i}]")
+    fc.append("".join(f"[v{i}][a{i}]" for i in range(len(rows))) + f"concat=n={len(rows)}:v=1:a=1[v][a]")
+    out = paths().raw / f"{clip_id}.mp4"
+    tmp = out.with_suffix(".tmp.mp4")
+    cmd = [FFMPEG, "-y"]
+    for f in files:
+        cmd += ["-i", str(f)]
+    run([*cmd, "-filter_complex", ";".join(fc), "-map", "[v]", "-map", "[a]", "-c:v", "libx264", "-crf", "17",
+         "-preset", "fast", "-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart", str(tmp)])
+    tmp.replace(out)
+    pin(ids)  # the single clips' downloads stay a while (rebuild after export would need them)
+    return out

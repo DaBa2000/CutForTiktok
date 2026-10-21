@@ -42,7 +42,6 @@ button:disabled{opacity:.5;cursor:wait}
 textarea{width:100%;height:110px}
 #msg{margin-left:8px;color:var(--mute)}
 #msg.err{color:#f85149}
-#out{width:100%;max-width:360px;border-radius:8px;background:#000;margin-top:8px}
 .badge{padding:2px 8px;border-radius:10px;font-size:12px;background:#333;margin-left:8px}
 .hint{color:var(--mute);font-size:12px}
 .pp{display:flex;gap:8px;align-items:center;padding:6px;border-radius:7px;background:#151515;margin-bottom:5px}
@@ -72,11 +71,15 @@ textarea{width:100%;height:110px}
     <div class="row">
       <label><input type="checkbox" id="hasCam"> Facecam vorhanden</label>
       <button id="redetect" title="Facecam in diesem Clip automatisch suchen">Facecam neu erkennen</button>
-      <span class="hint">Position wird beim Speichern für @<span id="who"></span> gemerkt</span>
+      <span class="hint">wird automatisch für @<span id="who"></span> gemerkt</span>
     </div>
     <div class="row">
       <label for="gx">Spiel-Ausschnitt (horizontal)</label>
       <input type="range" id="gx" min="0" max="1" step="0.01" style="flex:1">
+    </div>
+    <div class="row">
+      <label for="zoom" title="Mehr vom Stream zeigen, mit schwarzen Balken oben und unten">Mehr Sicht (Balken)</label>
+      <input type="range" id="zoom" min="0" max="1" step="0.01" style="flex:1">
     </div>
     <h3 style="margin-top:14px">Länge</h3>
     <div class="row">
@@ -122,14 +125,12 @@ textarea{width:100%;height:110px}
 
 <div class="panel" style="margin-top:16px">
   <div class="row">
-    <button class="pri" id="save">Speichern & Rendern</button>
     <button class="ok" id="approve">Exportieren & weiter ➜</button>
     <button class="no" id="reject">Ignorieren</button>
-    <button id="posted">Als gepostet markieren</button>
     <span id="msg"></span>
   </div>
-  <h3 style="margin-top:12px">Gerendertes Video</h3>
-  <video id="out" controls playsinline></video>
+  <p class="hint">Änderungen werden automatisch gespeichert (Facecam, Ausschnitt und Aufteilung auch als Standard für diesen Streamer).
+    „Exportieren & weiter“ rendert im Hintergrund, legt den Clip in den Scheduler und öffnet den nächsten.</p>
 </div>
 
 <script>
@@ -138,12 +139,13 @@ const id = location.pathname.split('/').pop();
 const src = $('src'), cv = $('pv'), ctx = cv.getContext('2d');
 let S;            // clip state from server
 let R;            // render dims
-let dirty = false;
+let dirty = false, saveTimer = null;
 
 const fmt = n => (Math.round(n * 10) / 10).toFixed(1);
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 function msg(t, err) { $('msg').textContent = t; $('msg').className = err ? 'err' : ''; }
-function markDirty() { dirty = true; msg('Ungespeicherte Änderungen'); }
+// every change is saved shortly after (edit state + the streamer's facecam layout); no render
+function markDirty() { dirty = true; msg('Speichert…'); clearTimeout(saveTimer); saveTimer = setTimeout(save, 800); }
 
 async function api(path, body) {
   const r = await fetch(path, { method: 'POST', body: JSON.stringify(body || {}) });
@@ -167,12 +169,12 @@ async function load() {
   $('who').textContent = S.streamer;
   $('title').innerHTML = `@${S.streamer} — ${S.title.replace(/</g, '&lt;')}<span class="badge">${S.status}</span>`;
   src.src = '/raw/' + id;
-  $('out').src = '/video/' + id + '?t=' + Date.now();
   S.subs = S.subs || [];
   S.cuts = S.cuts ? JSON.parse(S.cuts) : [];
   S.game_x = S.game_x ?? 0.5;
   $('hasCam').checked = !!S.cam;
   $('gx').value = S.game_x;
+  S.zoom = S.zoom ?? 0; $('zoom').value = S.zoom;
   $('caption').value = S.caption || '';
   $('otitle').value = S.overlay_title ?? S.title;
   lastTitle = $('otitle').value.trim() || null;
@@ -188,8 +190,29 @@ async function load() {
   drawCuts();
   document.querySelectorAll('.who2').forEach(e => e.textContent = S.streamer);
   S.switches = (S.switches ? JSON.parse(S.switches) : []);
+  S.segments = S.segments ? JSON.parse(S.segments) : null;
+  if (S.segments) S.segments[0] = { ...S.segments[0], cam: S.cam, game_x: S.game_x };
   loadPersp();
 }
+
+// ---------- joined clip: every part keeps its own facecam layout; the controls edit the part being played ----------
+let curPart = 0;
+const partAt = t => S.segments ? Math.max(0, S.segments.findLastIndex(p => t >= p.start - 0.01)) : 0;
+function keepPart() { if (S.segments) Object.assign(S.segments[curPart], { cam: S.cam, game_x: S.game_x }); }
+function syncPart() {
+  if (!S?.segments) return;
+  const i = partAt(src.currentTime);
+  if (i === curPart) return;
+  keepPart();
+  curPart = i;
+  S.cam = S.segments[i].cam; S.game_x = S.segments[i].game_x ?? 0.5;
+  $('hasCam').checked = !!S.cam; $('gx').value = S.game_x;
+  document.querySelectorAll('.who2').forEach(e => e.textContent = S.segments[i].streamer);
+  layoutBoxes();
+}
+src.addEventListener('timeupdate', syncPart);
+src.addEventListener('seeked', syncPart);
+const curStreamer = () => S.segments ? S.segments[curPart].streamer : S.streamer;
 
 // ---------- facecam box (normalized coords, aspect locked to output cam area) ----------
 const CH = () => S.cam_h || R.cam_height;             // facecam area height in output px
@@ -238,11 +261,14 @@ $('hasCam').onchange = e => {
   layoutBoxes(); markDirty();
 };
 $('gx').oninput = e => { S.game_x = +e.target.value; layoutBoxes(); markDirty(); };
+$('zoom').oninput = e => { S.zoom = +e.target.value; layoutBoxes(); markDirty(); };
 
-function gameWin() { return gameWinFor(src.videoWidth || 1920, src.videoHeight || 1080, S.game_x); }
-function gameWinFor(vw, vh, gx) {
-  const gh = R.height - CH(), w = Math.min(vw, vh * R.width / gh);
-  return { x: clamp(gx * vw - w / 2, 0, vw - w), w, vw, vh };
+function gameWin() { return gameWinFor(src.videoWidth || 1920, src.videoHeight || 1080, S.game_x, !!S.cam); }
+function gameWinFor(vw, vh, gx, hasCam) {  // no facecam: the game fills the whole frame
+  const gh = R.height - (hasCam ? CH() : 0), fw = Math.min(vw, vh * R.width / gh);
+  const w = fw + clamp(S.zoom || 0, 0, 1) * (vw - fw);  // zoom: wider window, black bars (mirrors render.py)
+  const oh = Math.min(gh, R.width * vh / w);              // game height in output px
+  return { x: clamp(gx * vw - w / 2, 0, vw - w), w, vw, vh, gh, oh };
 }
 
 // ---------- perspectives: switch to another stream's clip of the same moment ----------
@@ -487,16 +513,18 @@ function draw() {
   const cam = v === src ? S.cam : ov.layout?.cam || null;
   const vw = v.videoWidth, vh = v.videoHeight;
   ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, H);
-  const top = cam ? [cam[0] * vw, cam[1] * vh, cam[2] * vw, cam[3] * vh] : [0, 0, vw, vh];
-  ctx.drawImage(v, ...cover(...top, camAspect()), 0, 0, W, camH);
-  const g = v === src ? gameWin() : gameWinFor(vw, vh, ov.layout?.game_x ?? 0.5);
-  ctx.drawImage(v, g.x, 0, g.w, vh, 0, camH, W, H - camH);
+  const g = v === src ? gameWin() : gameWinFor(vw, vh, ov.layout?.game_x ?? 0.5, !!cam);
+  if (cam) {
+    ctx.drawImage(v, ...cover(cam[0] * vw, cam[1] * vh, cam[2] * vw, cam[3] * vh, camAspect()), 0, 0, W, camH);
+  }
+  const gy = (cam ? camH : 0) + (g.gh - g.oh) / 2 * k;
+  ctx.drawImage(v, g.x, 0, g.w, vh, 0, gy, W, g.oh * k);
 
   const F = '"Montserrat Black", "Arial Black", sans-serif';
   const outlined = (txt, x, y, lw) => { ctx.lineWidth = lw; ctx.strokeStyle = '#000'; ctx.lineJoin = 'round'; ctx.strokeText(txt, x, y); ctx.fillText(txt, x, y); };
   // credit
   ctx.font = `${40 * k}px ${F}`; ctx.textBaseline = 'top'; ctx.textAlign = 'left'; ctx.fillStyle = '#fff';
-  outlined('@' + (v === src ? S.streamer : sw.streamer), 30 * k, 30 * k, 8 * k);
+  outlined('@' + (v === src ? curStreamer() : sw.streamer), 30 * k, 30 * k, 8 * k);
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   const t = src.currentTime, rel = t - S.trim_start;
 
@@ -543,36 +571,28 @@ function draw() {
     ctx.globalAlpha = 1;
   }
   // split handle
-  if (splitHover || splitDrag) {
+  if (S.cam && (splitHover || splitDrag)) {
     ctx.fillStyle = '#39d353'; ctx.fillRect(0, camH - 1.5, W, 3);
     ctx.beginPath(); ctx.roundRect(W / 2 - 28, camH - 7, 56, 14, 7); ctx.fill();
   }
 }
 
 // ---------- actions ----------
+const editBody = () => (keepPart(), {
+  cam: S.segments ? S.segments[0].cam : S.cam, game_x: S.segments ? S.segments[0].game_x : S.game_x, zoom: S.zoom, segments: S.segments, trim_start: S.trim_start, trim_end: S.trim_end, cuts: S.cuts, subs: S.subs,
+  caption: $('caption').value, overlay_title: $('otitle').value, cam_h: Math.round(CH()), switches: switchesBody(),
+});
 async function save() {
-  const b = $('save'); b.disabled = true; msg('Rendere… (kann ~30s dauern)');
-  try {
-    await api('/api/clip/' + id, {
-      cam: S.cam, game_x: S.game_x, trim_start: S.trim_start, trim_end: S.trim_end,
-      cuts: S.cuts, subs: S.subs, caption: $('caption').value, switches: switchesBody(),
-      overlay_title: $('otitle').value, cam_h: Math.round(CH()),
-    });
-    dirty = false; msg('Gespeichert & gerendert ✓');
-    $('out').src = '/video/' + id + '?t=' + Date.now();
-  } catch (e) { msg(e.message, true); throw e; } finally { b.disabled = false; }
+  clearTimeout(saveTimer);
+  if (!dirty) return;
+  dirty = false;
+  try { await api('/api/clip/' + id, editBody()); msg('Gespeichert ✓'); }
+  catch (e) { dirty = true; msg(e.message, true); }
 }
 async function setStatus(st) {
   await api(`/api/clip/${id}/status`, { status: st });
   S.status = st; $('title').querySelector('.badge').textContent = st;
 }
-async function exportClip() {
-  if (dirty) await save();
-  const j = await api(`/api/clip/${id}/export`);
-  S.status = 'approved'; $('title').querySelector('.badge').textContent = 'approved';
-  msg('Exportiert ✓ ' + j.file);
-}
-$('save').onclick = () => save().catch(() => {});
 // ---------- workflow: next clip in the list's current order (saved by the list page) ----------
 // handled clip leaves the order; the next one is whatever now sits at its position
 function goNext() {
@@ -588,23 +608,13 @@ function goNext() {
 async function exportAndNext() {
   const b = $('approve'); b.disabled = true; msg('Wird im Hintergrund gerendert & exportiert…');
   try {
-    await api('/api/clip/' + id + '/export_async', {
-      cam: S.cam, game_x: S.game_x, trim_start: S.trim_start, trim_end: S.trim_end,
-      cuts: S.cuts, subs: S.subs, caption: $('caption').value, overlay_title: $('otitle').value, cam_h: Math.round(CH()),
-      switches: switchesBody(),
-    });
+    clearTimeout(saveTimer);
+    await api('/api/clip/' + id + '/export', editBody());  // saves + queues the final render
     goNext();
   } catch (e) { msg(e.message, true); b.disabled = false; }
 }
 $('approve').onclick = exportAndNext;
-$('reject').onclick = () => setStatus('ignored').then(goNext).catch(e => msg(e.message, true));
-$('posted').onclick = async () => {
-  if (!confirm('Als gepostet markieren? Der Clip verschwindet aus der Liste (Tab „Gepostet“).')) return;
-  try {
-    if (S.status !== 'approved' || dirty) await exportClip();
-    await setStatus('uploaded'); location.href = '/';
-  } catch (e) { msg(e.message, true); }
-};
+$('reject').onclick = () => { clearTimeout(saveTimer); setStatus('ignored').then(goNext).catch(e => msg(e.message, true)); };
 // ---------- facecam / game split (drag the seam in the preview) ----------
 let splitHover = false, splitDrag = false;
 const cvY = e => (e.clientY - cv.getBoundingClientRect().top) * R.height / cv.clientHeight;  // output px
@@ -631,7 +641,7 @@ $('redetect').onclick = async () => {
     const camPxAspect = cam[2] * src.videoWidth / (cam[3] * src.videoHeight);
     S.cam_h = Math.round(clamp(R.width / camPxAspect, 240, 1400) / 2) * 2;
     fitCam(); updSplit(); layoutBoxes(); markDirty();
-    msg('Facecam erkannt ✓ – Speichern übernimmt sie für @' + S.streamer);
+    msg('Facecam erkannt ✓ – gespeichert für @' + S.streamer);
   } catch (e) { msg(e.message, true); }
   finally { b.disabled = false; b.textContent = 'Facecam neu erkennen'; }
 };
@@ -639,17 +649,20 @@ function updSplit() { $('splitInfo').textContent = `Facecam ${Math.round(CH() / 
 cv.addEventListener('pointermove', e => {
   if (!R) return;
   if (splitDrag) return setSplit(cvY(e));
-  splitHover = Math.abs(cvY(e) - CH()) < 40;
+  splitHover = !!S.cam && Math.abs(cvY(e) - CH()) < 40;
   cv.style.cursor = splitHover ? 'ns-resize' : '';
 });
 cv.addEventListener('pointerdown', e => {
-  if (R && Math.abs(cvY(e) - CH()) < 40) { splitDrag = true; cv.setPointerCapture(e.pointerId); e.preventDefault(); }
+  if (R && S.cam && Math.abs(cvY(e) - CH()) < 40) { splitDrag = true; cv.setPointerCapture(e.pointerId); e.preventDefault(); }
 });
 cv.addEventListener('pointerup', () => splitDrag = false);
 cv.addEventListener('pointerleave', () => { if (!splitDrag) splitHover = false; });
 $('resetSplit').onclick = () => setSplit(R.cam_height);
 
 requestAnimationFrame(draw);
-window.addEventListener('beforeunload', e => { if (dirty) { e.preventDefault(); e.returnValue = ''; } });
+// leaving within the autosave delay: send the last change anyway
+window.addEventListener('pagehide', () => {
+  if (dirty) fetch('/api/clip/' + id, { method: 'POST', body: JSON.stringify(editBody()), keepalive: true });
+});
 load();
 </script>

@@ -5,6 +5,7 @@ import SwiftUI
 struct ClipperApp: App {
     @State private var connection = Connection()
     @State private var order = ClipOrder()
+    @State private var configs = ConfigStore()
     @State private var pairError: String?
 
     init() {
@@ -20,6 +21,7 @@ struct ClipperApp: App {
             }
             .environment(connection)
             .environment(order)
+            .environment(configs)
             .preferredColorScheme(.dark)
             .tint(Theme.acc)
             // QR scanned with the iPhone camera app opens clipper://pair?...
@@ -37,7 +39,7 @@ struct ClipperApp: App {
     }
 }
 
-/// Same four pages as the website's nav, same order.
+/// Same pages as the website's nav, same order, plus the settings (configurations).
 struct RootView: View {
     @Environment(Connection.self) private var connection
     @AppStorage("tab") private var tab = "foryou"
@@ -47,7 +49,8 @@ struct RootView: View {
             ForYouView().tabItem { Label("For You", systemImage: "play.rectangle.on.rectangle") }.tag("foryou")
             EditListView().tabItem { Label("Edit", systemImage: "scissors") }.tag("edit")
             SchedulerView().tabItem { Label("Scheduler", systemImage: "calendar.badge.clock") }.tag("scheduler")
-            SelectorView().tabItem { Label("Post Selector", systemImage: "square.grid.2x2") }.tag("selector")
+            DiscoveryView().tabItem { Label("Discovery", systemImage: "square.grid.2x2") }.tag("selector")
+            SettingsView().tabItem { Label("Einstellungen", systemImage: "gearshape") }.tag("settings")
         }
         .safeAreaInset(edge: .top, spacing: 0) {
             if connection.offline {

@@ -1,3 +1,4 @@
+import Observation
 import SwiftUI
 
 /// Colors of the website (web/*.html :root vars).
@@ -91,39 +92,66 @@ struct ClipThumb: View {
     }
 }
 
-/// Streamer multiselect. Stores the *unchecked* ones, so new streamers show up by default (like the website).
-struct StreamerFilter: View {
-    let streamers: [String]
-    @Binding var hidden: Set<String>
-    var counts: [String: Int] = [:]
+/// Configurations from the Mac (Einstellungen). The active one decides which streamers For You, Discovery and the
+/// background downloads use; `version` changes when another one becomes active, pages reload on it.
+@Observable
+final class ConfigStore {
+    var list: [ConfigItem] = []
+    var active = ""
+    var all: [String] = []
+    var version = 0
 
-    var body: some View {
-        Menu {
-            Button("Alle") { hidden = [] }
-            Button("Keine") { hidden = Set(streamers) }
-            Divider()
-            ForEach(streamers, id: \.self) { s in
-                Button {
-                    if hidden.contains(s) { hidden.remove(s) } else { hidden.insert(s) }
-                } label: {
-                    if hidden.contains(s) { Text("@\(s)") + Text(counts[s].map { "  \($0)" } ?? "") }
-                    else { Label("@\(s)" + (counts[s].map { "  \($0)" } ?? ""), systemImage: "checkmark") }
-                }
-            }
-        } label: {
-            Label(summary, systemImage: "person.2").font(.subheadline.weight(.semibold))
-        }
-        .menuActionDismissBehavior(.disabled)
+    var activeItem: ConfigItem? { list.first { $0.id == active } }
+
+    func load(_ api: API?) async {
+        guard let api, let j = try? await api.configs() else { return }
+        apply(j)
     }
 
-    private var summary: String {
-        let on = streamers.filter { !hidden.contains($0) }
-        if on.count == streamers.count { return "Alle" }
-        if on.isEmpty { return "Keine" }
-        return on.count <= 1 ? "@\(on[0])" : "\(on.count)/\(streamers.count)"
+    func apply(_ j: ConfigsResponse) {
+        list = j.configs
+        all = j.streamers
+        if active != j.active {
+            if !active.isEmpty { version += 1 }
+            active = j.active
+        }
+    }
+
+    /// page answered with another active configuration (changed on the website): take it over
+    func check(_ info: ConfigInfo?, _ api: API?) {
+        guard let info, !active.isEmpty, info.id != active else { return }
+        Task { await load(api) }
+    }
+
+    func activate(_ id: String, _ api: API?) async throws {
+        guard let api else { return }
+        apply(try await api.activateConfig(id))
     }
 }
 
+/// Toolbar: active configuration, switch to another one.
+struct ConfigMenu: View {
+    @Environment(Connection.self) private var connection
+    @Environment(ConfigStore.self) private var configs
+    @State private var error: String?
+
+    var body: some View {
+        Menu {
+            Picker("Konfiguration", selection: Binding(get: { configs.active }, set: { id in
+                Task { do { try await configs.activate(id, connection.api) } catch { self.error = error.localizedDescription } }
+            })) {
+                ForEach(configs.list) { c in
+                    Text("\(c.name) (\(c.streamers.map { "\($0.count)" } ?? "alle"))").tag(c.id)
+                }
+            }
+        } label: {
+            Label(configs.activeItem?.name ?? "Konfiguration", systemImage: "slider.horizontal.3")
+                .labelStyle(.titleAndIcon).font(.subheadline.weight(.semibold)).lineLimit(1)
+        }
+        .task { if configs.list.isEmpty { await configs.load(connection.api) } }
+        .errorAlert($error)
+    }
+}
 
 /// Toolbar menu with the connection (host, disconnect).
 struct ConnectionMenu: View {

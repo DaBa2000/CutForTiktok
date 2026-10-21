@@ -1,18 +1,37 @@
 import AVKit
 import SwiftUI
 
-/// Ranked untouched clips one at a time: Behalten (→ Edit) / Ignorieren. Mirrors web/foryou.html.
+/// For You tab: all streamers of the active configuration.
 struct ForYouView: View {
+    var body: some View {
+        NavigationStack { ForYouFeed() }
+    }
+}
+
+/// Untouched clips one at a time: Behalten (→ Edit) / Ignorieren, swipe up/down to browse. Ranked ("Für dich"),
+/// newest or top first. With `streamer`: that streamer's profile "For You style" (pushed from Discovery).
+/// Mirrors web/foryou.html. The next clips get downloaded on the Mac (skip = position in the feed).
+struct ForYouFeed: View {
+    var streamer: String? = nil
+    var initialSort: String? = nil
+    var initialAge: Int? = nil
+    var startId: String? = nil
+
     @Environment(Connection.self) private var connection
+    @Environment(ConfigStore.self) private var configs
     @State private var feed: [ClipItem] = []
-    @State private var streamers: [String] = []
+    @State private var idx = 0
     @State private var nextSync: Double?
     @State private var cur: ClipItem?
     @State private var decided: Set<String> = []
     @State private var undoStack: [ClipItem] = []
-    @State private var hidden: Set<String> = []
-    @State private var excluding: String?  // "Streamer ausblenden" confirmation  // stored on the Mac, same as the website
-    @AppStorage("foryouAge") private var age = 0  // only clips of the last n minutes (0 = all)
+    @State private var excluding: String?  // "Streamer ausblenden" confirmation
+    @AppStorage("foryouAge") private var savedAge = 0  // only clips of the last n minutes (0 = all)
+    @AppStorage("foryouSort") private var savedSort = "rank"
+    @State private var age = 0
+    @State private var sort = "rank"
+    @State private var started = false
+    @State private var pendingStart: String?
     @State private var player = AVPlayer()
     @State private var playing: String?  // clip id loaded in the player (main clip or a perspective)
     @State private var persp: [Perspective] = []
@@ -21,38 +40,55 @@ struct ForYouView: View {
     @State private var drag: CGFloat = 0
     @State private var error: String?
 
+    private var sorts: [(String, String)] {
+        streamer == nil ? [("rank", "Für dich"), ("new", "Neueste"), ("top", "Top")] : [("new", "Neueste"), ("top", "Top")]
+    }
+
     var body: some View {
-        NavigationStack {
-            ScrollView {
-                if let c = cur { stage(c) } else { empty }
+        ScrollView {
+            VStack(spacing: 8) {
+                Picker("", selection: $sort) { ForEach(sorts, id: \.0) { Text($0.1).tag($0.0) } }.pickerStyle(.segmented)
+                AgeChips(age: $age)
             }
-            .scrollBounceBehavior(.basedOnSize)
-            .background(Theme.bg)
-            .navigationTitle("For You")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarLeading) { ConnectionMenu() }
-                ToolbarItem(placement: .principal) { SyncCountdown(nextSync: nextSync) }
-                ToolbarItemGroup(placement: .topBarTrailing) {
-                    Button { Task { await undoLast() } } label: { Image(systemName: "arrow.uturn.backward") }
-                        .disabled(undoStack.isEmpty)
-                    AgeFilter(age: $age)
-                    StreamerFilter(streamers: streamers, hidden: Binding(get: { hidden }, set: { new in
-                        hidden = new
-                        cur = nil
-                        Task { await connection.api?.saveHidden("foryou", new); await load() }
-                    }))
-                }
-            }
-            .onChange(of: age) { cur = nil; Task { await load() } }
-            .polling(every: 4) { await load() }  // downloads finishing, new clips
-            .onDisappear { player.pause() }
-            .errorAlert($error)
-            .confirmationDialog("@\(excluding ?? "") ausblenden?", isPresented: Binding(get: { excluding != nil }, set: { if !$0 { excluding = nil } }),
-                                titleVisibility: .visible) {
-                Button("Ignorieren", role: .destructive) { if let s = excluding { Task { await exclude(s) } } }
-            } message: { Text("In For You und Post Selector. Im Streamer-Filter wieder einschaltbar.") }
+            .padding(.horizontal).padding(.top, 6)
+            if let c = cur { stage(c) } else { empty }
         }
+        .scrollBounceBehavior(.basedOnSize)
+        .background(Theme.bg)
+        .navigationTitle(streamer.map { "@\($0)" } ?? "For You")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            if streamer == nil { ToolbarItem(placement: .topBarLeading) { ConfigMenu() } }
+            ToolbarItem(placement: .principal) { SyncCountdown(nextSync: nextSync) }
+            ToolbarItem(placement: .topBarTrailing) {
+                Button { Task { await undoLast() } } label: { Image(systemName: "arrow.uturn.backward") }
+                    .disabled(undoStack.isEmpty)
+            }
+        }
+        .onAppear {
+            guard !started else { return }
+            started = true
+            sort = initialSort ?? (streamer == nil ? savedSort : "new")
+            age = initialAge ?? (streamer == nil ? savedAge : 0)
+            pendingStart = startId
+        }
+        .onChange(of: sort) { if streamer == nil { savedSort = sort }; restart() }
+        .onChange(of: age) { if streamer == nil { savedAge = age }; restart() }
+        .onChange(of: configs.version) { restart() }
+        .polling(every: 4) { await load() }  // downloads finishing, new clips
+        .onDisappear { player.pause() }
+        .errorAlert($error)
+        .confirmationDialog("@\(excluding ?? "") ausblenden?", isPresented: Binding(get: { excluding != nil }, set: { if !$0 { excluding = nil } }),
+                            titleVisibility: .visible) {
+            Button("Ausblenden", role: .destructive) { if let s = excluding { Task { await exclude(s) } } }
+        } message: { Text("Aus der aktiven Konfiguration nehmen (in den Einstellungen wieder einschaltbar).") }
+    }
+
+    private func restart() {
+        guard started else { return }
+        cur = nil
+        idx = 0
+        Task { await load() }
     }
 
     // MARK: views
@@ -76,9 +112,11 @@ struct ForYouView: View {
                 Text(c.displayTitle).font(.title3.weight(.heavy))
                 HStack(spacing: 6) {
                     Text("@\(c.streamer)")
-                    Button { excluding = c.streamer } label: { Image(systemName: "nosign") }
-                        .buttonStyle(.borderless).tint(Theme.mute)
-                        .accessibilityLabel("@\(c.streamer) ignorieren")
+                    if streamer == nil {
+                        Button { excluding = c.streamer } label: { Image(systemName: "nosign") }
+                            .buttonStyle(.borderless).tint(Theme.mute)
+                            .accessibilityLabel("@\(c.streamer) ausblenden")
+                    }
                     Text("· \(c.views ?? 0) Views · vor \(ago(c.createdDate)) · \(Int((c.duration ?? 0).rounded()))s")
                     if (c.parts ?? 1) > 1 { Pill(text: "🔗 \(c.parts!)", color: Theme.purple) }
                 }
@@ -95,7 +133,15 @@ struct ForYouView: View {
                     .buttonStyle(PrimaryButton())
             }
             .font(.title3)
-            Text("Wischen: ← ignorieren · → behalten").font(.caption).foregroundStyle(Theme.mute).frame(maxWidth: .infinity)
+            HStack(spacing: 12) {
+                Button { step(-1) } label: { Label("Vorheriger", systemImage: "chevron.up").frame(maxWidth: .infinity) }
+                    .buttonStyle(SecondaryButton()).disabled(idx == 0)
+                Button { step(1) } label: { Label("Nächster", systemImage: "chevron.down").frame(maxWidth: .infinity) }
+                    .buttonStyle(SecondaryButton()).disabled(idx >= feed.count - 1)
+            }
+            .font(.subheadline)
+            Text("Wischen: ← ignorieren · → behalten · ↑↓ blättern · Clip \(idx + 1) von \(feed.count)")
+                .font(.caption).foregroundStyle(Theme.mute).frame(maxWidth: .infinity)
         }
         .padding()
         .offset(x: drag)
@@ -114,6 +160,9 @@ struct ForYouView: View {
                     let d = drag
                     withAnimation(.spring(duration: 0.25)) { drag = 0 }
                     if d > 110 { Task { await decide("kept") } } else if d < -110 { Task { await decide("ignored") } }
+                    else if abs(g.translation.height) > 120 && abs(g.translation.height) > abs(g.translation.width) * 2 {
+                        step(g.translation.height < 0 ? 1 : -1)  // swipe up = next clip, like TikTok
+                    }
                 }
         )
     }
@@ -156,24 +205,40 @@ struct ForYouView: View {
     private func exclude(_ streamer: String) async {
         struct Body: Encodable { let streamer: String }
         do { try await connection.api?.post("/api/filters/exclude", Body(streamer: streamer)) } catch { self.error = error.localizedDescription }
-        hidden.insert(streamer)
+        await configs.load(connection.api)
+        cur = nil
         await load()
     }
 
     private func load() async {
-        guard let api = connection.api else { return }
-        guard let j: ClipsResponse = try? await api.get("/api/foryou" + (age > 0 ? "?age=\(age)" : "")) else { return }
-        hidden = Set(j.hidden ?? [])
+        guard let api = connection.api, started else { return }
+        var q = [URLQueryItem(name: "sort", value: sort), URLQueryItem(name: "skip", value: "\(idx)")]
+        if age > 0 { q.append(URLQueryItem(name: "age", value: "\(age)")) }
+        if let streamer { q.append(URLQueryItem(name: "streamer", value: streamer)) }
+        var comps = URLComponents(); comps.path = "/api/foryou"; comps.queryItems = q
+        guard let j: ClipsResponse = try? await api.get(comps.string ?? "/api/foryou") else { return }
+        configs.check(j.config, api)
         feed = j.clips.filter { !decided.contains($0.id) }
-        streamers = j.streamers ?? []
         nextSync = j.next_sync
-        // keep the clip on screen until decided; just refresh its data (e.g. download finished)
-        if let c = cur, let same = feed.first(where: { $0.id == c.id }) {
-            cur = same
-            if same.ready && playing == nil { show(same) }
+        if let s = pendingStart, let k = feed.firstIndex(where: { $0.id == s }) { idx = k; pendingStart = nil; cur = nil }
+        // keep the clip on screen until decided / skipped; just refresh its data (e.g. download finished)
+        if let c = cur, let k = feed.firstIndex(where: { $0.id == c.id }) {
+            idx = k
+            cur = feed[k]
+            if feed[k].ready && playing == nil { show(feed[k]) }
         } else {
-            show(feed.first)
+            idx = min(idx, max(0, feed.count - 1))
+            show(feed.indices.contains(idx) ? feed[idx] : nil)
         }
+    }
+
+    /// browse without deciding (swipe up / down)
+    private func step(_ d: Int) {
+        let n = idx + d
+        guard feed.indices.contains(n) else { return }
+        idx = n
+        show(feed[n])
+        Task { await load() }  // the Mac downloads the clips after this one
     }
 
     private func show(_ c: ClipItem?) {
@@ -218,38 +283,21 @@ struct ForYouView: View {
         decided.insert(c.id)
         undoStack.append(c)
         UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-        show(feed.first { !decided.contains($0.id) })
+        feed.removeAll { decided.contains($0.id) }
+        idx = min(idx, max(0, feed.count - 1))
+        show(feed.indices.contains(idx) ? feed[idx] : nil)
         do { try await api.setStatus(c.id, status) } catch { self.error = error.localizedDescription }
-        await load()  // re-rank: the decision changes the channel's weight
+        await load()
     }
 
     private func undoLast() async {
         guard let c = undoStack.popLast(), let api = connection.api else { return }
         try? await api.setStatus(c.id, "new")
         decided.remove(c.id)
+        pendingStart = c.id
         cur = nil
         await load()
-        if let back = feed.first(where: { $0.id == c.id }) { show(back) }
     }
 
     private func fmtS(_ s: Double) -> String { "\(Int(s) / 60):\(String(format: "%02d", Int(s.rounded()) % 60))" }
-}
-
-/// Time filter like the website's chips: 15 Min … 7 Tage.
-struct AgeFilter: View {
-    @Binding var age: Int
-    static let options = [(0, "Alle"), (15, "15 Min"), (60, "1 h"), (180, "3 h"), (360, "6 h"), (720, "12 h"),
-                          (1440, "24 h"), (2880, "2 Tage"), (4320, "3 Tage"), (10080, "7 Tage")]
-
-    var body: some View {
-        Menu {
-            Picker("Zeitraum", selection: $age) {
-                ForEach(Self.options, id: \.0) { Text($0.1).tag($0.0) }
-            }
-        } label: {
-            Label(age == 0 ? "Zeit" : Self.options.first { $0.0 == age }?.1 ?? "", systemImage: "clock")
-                .labelStyle(.titleAndIcon).font(.subheadline.weight(.semibold))
-                .foregroundStyle(age == 0 ? Theme.fg : Theme.acc2)
-        }
-    }
 }

@@ -1,23 +1,26 @@
 """Clip lifecycle: every status change and its side effects happen here, so a clip that is ignored or
-exported in one place (For You, Edit, Post Selector, editor, iPhone app) is gone from all of them.
+exported in one place (For You, Edit, Discovery, editor, iPhone app) is gone from all of them.
 
 status: new (listed) -> kept (For You "Behalten", prepared with priority) -> pending_review (edited)
         -> approved (exported to rendered_clips/) -> uploaded (posted)
         ignored: dropped by the user (from any stage)
-Lists: For You = new · Edit = kept + pending_review · Post Selector = new + pending_review ·
-       Scheduler = approved. Clips being exported, ignored or merged into another clip show up nowhere."""
+Lists: For You = new · Edit = kept + pending_review · Discovery = new + pending_review ·
+       Scheduler = approved. Clips being exported, ignored or merged into another clip show up nowhere.
+For You and Discovery only show the active configuration's streamers (store.py) and clips younger than
+`clips.max_age_days` (older ones are deleted, pipeline.purge_old)."""
 import hashlib
 import json
 import queue
 import threading
 import time
 import traceback
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from . import db, facecam, foryou, perspectives, pipeline, prefetch, store
-from .config import load_config, paths
+from .config import load_config
 
-SELECTOR = ("new", "pending_review")
+DISCOVERY = ("new", "pending_review")
 EDITING = ("kept", "pending_review")
 GONE = ("approved", "uploaded", "ignored")  # handled: not offered anywhere anymore (also not as perspective)
 SET_BY_USER = ("new", "kept", "ignored", "uploaded", "restore")
@@ -30,14 +33,37 @@ LIST_COLS = ("id,streamer,title,overlay_title,views,duration,status,error,thumbn
 
 # ---------- lists ----------
 
-def selector_list() -> list[dict]:
-    """Post Selector: clips still to decide on (overlapping clips are merged: members are hidden)."""
-    q = ",".join("?" * len(SELECTOR))
+def _cutoff() -> str:
+    days = load_config()["clips"].get("max_age_days", 7)
+    return (datetime.now(timezone.utc) - timedelta(days=days)).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def when(row) -> str:
+    """Moment in the stream, else clip creation (sort key)."""
+    return row["happened_at"] or row["created_at"] or ""
+
+
+def discovery_list() -> list[dict]:
+    """Discovery: clips still to decide on of the active configuration (overlapping clips are merged: members are
+    hidden). `parts` = clips merged into it."""
+    q = ",".join("?" * len(DISCOVERY))
+    shown = store.active_streamers()
     with db.conn() as c:
         rows = c.execute(
-            f"SELECT {LIST_COLS} FROM clips WHERE status IN ({q}) AND merged_into IS NULL AND views >= ? "
-            "ORDER BY created_at DESC", (*SELECTOR, load_config()["clips"].get("min_views", 0))).fetchall()
-    return [dict(r) for r in rows if r["id"] not in exporting]
+            f"SELECT {LIST_COLS}, raw_path FROM clips WHERE status IN ({q}) AND merged_into IS NULL AND views >= ? "
+            "AND COALESCE(happened_at, created_at) >= ? ORDER BY created_at DESC",
+            (*DISCOVERY, load_config()["clips"].get("min_views", 0), _cutoff())).fetchall()
+        merged_n = dict(c.execute("SELECT merged_into, COUNT(*) FROM clips WHERE merged_into IS NOT NULL GROUP BY merged_into"))
+    out = []
+    for r in rows:
+        if r["streamer"] not in shown or r["id"] in exporting:
+            continue
+        d = dict(r)
+        rp = d.pop("raw_path")
+        d["downloaded"] = bool(rp) and Path(rp).exists()
+        d["parts"] = merged_n.get(d["id"], 0) + (1 if d["parts"] <= 1 else 0)
+        out.append(d)
+    return out
 
 
 def edit_list() -> list[dict]:
@@ -55,9 +81,14 @@ def edit_list() -> list[dict]:
     return out
 
 
-def foryou_list(max_age_min: int | None) -> list[dict]:
-    ranked = foryou.rank(hidden=set(store.hidden("foryou")), max_age_min=max_age_min)
-    prefetch.set_feed([x["id"] for x in ranked[:6]])  # the next ones get downloaded in background
+def foryou_list(max_age_min: int | None, streamer: str | None = None, sort: str = "rank", skip: int = 0) -> list[dict]:
+    """For You feed (all streamers of the active configuration, or one streamer's profile "For You style").
+    skip: clips already watched in this session (the next ones after them get downloaded in background)."""
+    if sort not in foryou.SORTS:
+        raise ValueError("bad sort")
+    ranked = foryou.rank(streamers={streamer} if streamer else None, max_age_min=max_age_min, sort=sort,
+                         limit=200 if streamer else 60)
+    prefetch.set_focus("profile" if streamer else "foryou", [x["id"] for x in ranked[skip:skip + 6]])
     for x in ranked:
         rp = x.pop("raw_path")
         x["ready"] = bool(rp) and Path(rp).exists()
@@ -76,7 +107,7 @@ def export_queue() -> list[dict]:
 
 
 def used_per_channel() -> dict[str, int]:
-    """Clips used per channel (kept, edited, exported or posted) -> Post Selector order "meist genutzt"."""
+    """Clips used per channel (kept, edited, exported or posted) -> Discovery channel order "meist genutzt"."""
     q = ",".join("?" * len(foryou.ACCEPTED))
     with db.conn() as c:
         return {r[0]: r[1] for r in c.execute(
@@ -85,9 +116,7 @@ def used_per_channel() -> dict[str, int]:
 
 def perspectives_of(clip_id: str) -> list[dict]:
     """Clips of other channels at the same moment, without handled ones."""
-    found = [p for p in perspectives.find(clip_id) if db.get_clip(p["id"])["status"] not in GONE]
-    pipeline.pin([clip_id] + [p["id"] for p in found])  # keep their downloads while editing
-    return found
+    return [p for p in perspectives.find(clip_id) if db.get_clip(p["id"])["status"] not in GONE]
 
 
 # ---------- status ----------
@@ -188,15 +217,39 @@ def save_edit(clip_id: str, body: dict) -> None:
     if any(b["start"] < a["end"] for a, b in zip(cuts, cuts[1:])):
         raise ValueError("Ausgeschnittene Bereiche dürfen sich nicht überschneiden")
     cam_h = max(240, min(1400, int(body.get("cam_h") or load_config()["render"]["cam_height"])))
-    zoom = max(0.0, min(1.0, float(body.get("zoom") or 0)))
+    cam, game = _frame(body.get("cam")), _frame(body.get("game"))
+    if not game:  # older app: game crop as game_x + zoom
+        legacy = {"game_x": float(body.get("game_x", 0.5)), "zoom": max(0.0, min(1.0, float(body.get("zoom") or 0)))}
+    else:
+        legacy = {"game_x": None, "zoom": None}
+    kfs = sorted(({"t": round(float(k["t"]), 3), "cam": _frame(k.get("cam")), "game": _frame(k.get("game")),
+                   "ease": max(0.0, min(10.0, float(k.get("ease") or 0)))} for k in body.get("keyframes") or []),
+                 key=lambda k: k["t"])
+    switches = [{**s, "cam": _frame(s.get("cam")), "game": _frame(s.get("game"))} if "game" in s else s
+                for s in body.get("switches") or []]
     db.update_clip(
-        clip_id, cam=json.dumps(body["cam"]), game_x=float(body["game_x"]), zoom=zoom, cam_h=cam_h,
-        trim_start=ts, trim_end=te, caption=body["caption"], overlay_title=body.get("overlay_title", ""),
-        subs=json.dumps(body["subs"], ensure_ascii=False), switches=json.dumps(body.get("switches") or []),
+        clip_id, cam=json.dumps(cam), game=json.dumps(game) if game else None, cam_h=cam_h, **legacy,
+        keyframes=json.dumps(kfs), trim_start=ts, trim_end=te, caption=body["caption"],
+        overlay_title=body.get("overlay_title", ""),
+        subs=json.dumps(body["subs"], ensure_ascii=False), switches=json.dumps(switches),
         cuts=json.dumps(cuts), error=None,
         **({"segments": json.dumps(body["segments"])} if row["segments"] and body.get("segments") else {}),
         status="pending_review" if row["status"] in ("new", "kept") else row["status"])
-    facecam.save_layout(row["streamer"], {"cam": body["cam"], "cam_h": cam_h, "game_x": float(body["game_x"]), "zoom": zoom})
+    # remembered as the streamers' default layout (first frames of the clip; a perspective's own frames)
+    facecam.save_layout(row["streamer"], {"cam": cam, "cam_h": cam_h, **({"game": game} if game else legacy)})
+    for s in switches:
+        if s.get("game") and s.get("streamer"):
+            facecam.save_layout(s["streamer"], {**facecam.load_layouts().get(s["streamer"], {}), "cam": s["cam"], "game": s["game"]})
+
+
+def _frame(v) -> list[float] | None:
+    """Validated layout frame [x, y, w, h] (layout.py) or None."""
+    if not v:
+        return None
+    x, y, w, h = (float(a) for a in v)
+    if not (0.01 <= w <= 5 and 0.01 <= h <= 5 and -4 <= x <= 1 and -4 <= y <= 1):
+        raise ValueError("Ungültiger Bildausschnitt")
+    return [round(a, 5) for a in (x, y, w, h)]
 
 
 def open_in_editor(clip_id: str) -> None:
@@ -214,7 +267,7 @@ def open_in_editor(clip_id: str) -> None:
 # ---------- export ("Exportieren & weiter": final render + export in background) ----------
 
 _jobs: "queue.Queue[str]" = queue.Queue()
-exporting: set[str] = set()  # queued or rendering; hidden from the Post Selector
+exporting: set[str] = set()  # queued or rendering; hidden from Discovery
 
 
 def export(clip_id: str, body: dict) -> None:
@@ -237,7 +290,8 @@ def join(ids: list[str]) -> str:
     for r in rows:
         ts, te = r["trim_start"] or 0.0, r["trim_end"]
         segments.append({"start": round(t, 3), "end": round(t + te - ts, 3), "clip": r["id"], "streamer": r["streamer"],
-                         "cam": json.loads(r["cam"] or "null"), "game_x": r["game_x"]})
+                         "cam": json.loads(r["cam"] or "null"), "game": json.loads(r["game"] or "null"),
+                         "game_x": r["game_x"], "zoom": r["zoom"]})
         for ch in json.loads(r["subs"]):
             words = [{**w, "start": round(w["start"] - ts + t, 3), "end": round(w["end"] - ts + t, 3)}
                      for w in ch["words"] if ts <= w["start"] < te]
@@ -250,7 +304,7 @@ def join(ids: list[str]) -> str:
         jid, title=first["title"], overlay_title=first["overlay_title"], caption=first["caption"],
         thumbnail=first["thumbnail"], game_id=first["game_id"], created_at=first["created_at"],
         happened_at=first["happened_at"], views=sum(r["views"] or 0 for r in rows), duration=round(t, 2),
-        cam=first["cam"], cam_h=first["cam_h"], game_x=first["game_x"], zoom=first["zoom"],
+        cam=first["cam"], cam_h=first["cam_h"], game=first["game"], game_x=first["game_x"], zoom=first["zoom"], keyframes="[]",
         trim_start=0.0, trim_end=round(t, 2), subs=json.dumps(subs, ensure_ascii=False),
         switches="[]", cuts="[]", chain=json.dumps(ids), segments=json.dumps(segments), error=None, merged_into=None,
         kept_at=time.strftime("%Y-%m-%d %H:%M:%S"))

@@ -118,7 +118,8 @@ def grow(anchor, rows: list) -> str:
     old_start = _span(anchor)[0] if not anchor["members"] else min(_span(r)[0] for r in rows if r["id"] in json.loads(anchor["members"]))
     mid = _create(rows, anchor["status"])
     delta = old_start - min(_span(r)[0] for r in rows)  # seconds added in front (exact offset: finish_grow)
-    keep = {k: anchor[k] for k in ("overlay_title", "caption", "cam", "cam_h", "game_x", "kept_at", "tier") if anchor[k] is not None}
+    keep = {k: anchor[k] for k in ("overlay_title", "caption", "cam", "cam_h", "game", "game_x", "zoom", "kept_at", "tier")
+            if anchor[k] is not None}
     if anchor["status"] == "pending_review" and anchor["subs"]:
         sh = lambda t: round(t + delta, 3)
         subs = [{"words": [{**w, "start": sh(w["start"]), "end": sh(w["end"])} for w in ch["words"]]}
@@ -127,6 +128,7 @@ def grow(anchor, rows: list) -> str:
             trim_start=sh(anchor["trim_start"] or 0), trim_end=sh(anchor["trim_end"] or anchor["duration"] or 0),
             subs=json.dumps(subs, ensure_ascii=False),
             cuts=json.dumps([{"start": sh(c["start"]), "end": sh(c["end"])} for c in json.loads(anchor["cuts"] or "[]")]),
+            keyframes=json.dumps([{**k, "t": sh(k["t"])} for k in json.loads(anchor["keyframes"] or "[]")]),
             switches=json.dumps([{**x, "t": sh(x["t"]), "off": x["off"] - delta} for x in json.loads(anchor["switches"] or "[]")]),
             regrow=json.dumps({"delta": delta, "old_raw": anchor["raw_path"],
                                "old_len": (anchor["duration"] or 0)}))

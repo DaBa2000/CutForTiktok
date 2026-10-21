@@ -2,159 +2,312 @@
 <title>Clip Editor</title>
 <style>
 @font-face{font-family:"Montserrat Black";src:url(/fonts/Montserrat-Black.ttf)}
-#prep{position:fixed;inset:0;background:rgba(0,0,0,.85);display:flex;align-items:center;justify-content:center;flex-direction:column;gap:12px;font-size:16px;z-index:10}
-#prep[hidden]{display:none}
-.spin{width:36px;height:36px;border:4px solid #444;border-top-color:#1f6feb;border-radius:50%;animation:sp 1s linear infinite}
-@keyframes sp{to{transform:rotate(360deg)}}
-:root{--bg:#111;--panel:#1b1b1b;--line:#2c2c2c;--fg:#eee;--mute:#999;--acc:#2ea043;--cam:#39d353}
+:root{--bg:#0c0c0f;--panel:#16161b;--panel2:#1d1d24;--line:#2a2a33;--fg:#ececf1;--mute:#8d8d9a;--acc:#fe2c55;--acc2:#25f4ee;--ok:#2ea043;--cam:#39d353;--game:#58a6ff;--cut:#f85149;--kf:#e5c100}
 *{box-sizing:border-box}
-body{font:14px system-ui;background:var(--bg);color:var(--fg);margin:0;padding:16px}
-a{color:#58a6ff;text-decoration:none}
-h2{margin:4px 0 12px;font-size:18px}
-.wrap{display:grid;grid-template-columns:minmax(380px,1fr) 360px minmax(320px,1fr);gap:16px;align-items:start}
-@media(max-width:1200px){.wrap{grid-template-columns:1fr}}
-.panel{background:var(--panel);border-radius:10px;padding:12px}
-.panel h3{margin:0 0 10px;font-size:14px;color:var(--mute);font-weight:600;text-transform:uppercase;letter-spacing:.04em}
-#stage{position:relative;line-height:0;user-select:none}
-#src{width:100%;border-radius:6px;background:#000}
-#cam{position:absolute;border:3px solid var(--cam);box-shadow:0 0 0 9999px rgba(0,0,0,.35);cursor:move}
-#cam .h{position:absolute;right:-8px;bottom:-8px;width:16px;height:16px;background:var(--cam);border-radius:3px;cursor:nwse-resize}
-#cam span{position:absolute;left:4px;top:4px;font:600 11px system-ui;color:#000;background:var(--cam);padding:1px 4px;border-radius:3px;line-height:1.4}
-#game{position:absolute;top:0;bottom:0;border-left:2px dashed #58a6ff;border-right:2px dashed #58a6ff;pointer-events:none}
-.row{display:flex;gap:8px;align-items:center;margin:8px 0;flex-wrap:wrap}
-label{color:var(--mute)}
-input[type=number]{width:80px}
-input,textarea,button{font:inherit}
-input[type=number],input[type=text],textarea{background:#0d0d0d;color:var(--fg);border:1px solid var(--line);border-radius:5px;padding:5px 7px}
-button{background:#2a2a2a;color:var(--fg);border:1px solid #3a3a3a;border-radius:6px;padding:6px 10px;cursor:pointer}
-button:hover{background:#333}
-button.ok{background:var(--acc);border-color:var(--acc);color:#fff;font-weight:600}
-button.no{background:#da3633;border-color:#da3633;color:#fff}
-button.pri{background:#1f6feb;border-color:#1f6feb;color:#fff;font-weight:600}
-button:disabled{opacity:.5;cursor:wait}
-#pv{width:360px;height:640px;background:#000;border-radius:8px;display:block;touch-action:none}
-#subs{max-height:520px;overflow:auto}
-.sub{display:grid;grid-template-columns:62px 62px 1fr 28px;gap:4px;margin-bottom:4px;align-items:center}
-.sub input[type=number]{width:100%;padding:4px}
-.sub input[type=text]{width:100%}
-.sub.cur input[type=text]{border-color:#e5c100}
-.sub button{padding:3px}
-textarea{width:100%;height:110px}
-#msg{margin-left:8px;color:var(--mute)}
-#msg.err{color:#f85149}
-.badge{padding:2px 8px;border-radius:10px;font-size:12px;background:#333;margin-left:8px}
+body{font:14px/1.35 -apple-system,system-ui,sans-serif;background:var(--bg);color:var(--fg);margin:0}
+a{color:var(--acc2);text-decoration:none}
+#prep{position:fixed;inset:0;background:rgba(0,0,0,.88);display:flex;align-items:center;justify-content:center;flex-direction:column;gap:12px;font-size:16px;z-index:50}
+#prep[hidden]{display:none}
+.spin{width:36px;height:36px;border:4px solid #444;border-top-color:var(--acc2);border-radius:50%;animation:sp 1s linear infinite}
+@keyframes sp{to{transform:rotate(360deg)}}
+button,input,select,textarea{font:inherit}
+button{background:var(--panel2);color:var(--fg);border:1px solid var(--line);border-radius:8px;padding:6px 10px;cursor:pointer;white-space:nowrap}
+button:hover{border-color:#4a4a55}button:disabled{opacity:.45;cursor:default}
+button.on{background:var(--acc2);border-color:var(--acc2);color:#000}
+button.ok{background:var(--ok);border-color:var(--ok);color:#fff;font-weight:700}
+button.no{background:transparent;color:var(--fg)}
+input[type=number],input[type=text],textarea,select{background:#0d0d10;color:var(--fg);border:1px solid var(--line);border-radius:7px;padding:5px 7px}
+input[type=range]{accent-color:var(--acc2)}
 .hint{color:var(--mute);font-size:12px}
-.pp{display:flex;gap:8px;align-items:center;padding:6px;border-radius:7px;background:#151515;margin-bottom:5px}
-.pp img{width:64px;height:36px;object-fit:cover;border-radius:4px;background:#000;flex:none}
-.pp .i{flex:1;min-width:0}.pp .i div{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.pp.here{outline:1px solid #25f4ee}
-.sw{display:flex;gap:8px;align-items:center;margin-bottom:4px}
-.sw .tm{font-variant-numeric:tabular-nums;color:#25f4ee;cursor:pointer;min-width:46px}
-.sw .x{padding:2px 7px}
-.cut{display:flex;gap:6px;align-items:center;margin-bottom:5px;flex-wrap:wrap}
-.cut input[type=number]{width:76px}
-.cut button{padding:3px 7px}
+/* header */
+header{position:sticky;top:0;z-index:20;display:flex;align-items:center;gap:12px;padding:10px 16px;background:rgba(12,12,15,.9);backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
+header h1{font-size:15px;margin:0;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.badge{padding:2px 8px;border-radius:10px;font-size:11px;background:#333;margin-left:6px;font-weight:600}
+#msg{color:var(--mute);font-size:12px;max-width:340px}#msg.err{color:var(--cut)}
+/* layout */
+.wrap{display:grid;grid-template-columns:minmax(0,1fr) auto 360px;gap:14px;padding:14px 16px 0;align-items:start}
+@media(max-width:1250px){.wrap{grid-template-columns:minmax(0,1fr) auto}.side{grid-column:1/-1}}
+@media(max-width:760px){.wrap{grid-template-columns:1fr;padding:10px}.pvbox{order:-1}}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:10px}
+.ttl{display:flex;align-items:center;gap:8px;margin:0 0 8px;font-size:12px;color:var(--mute);font-weight:700;text-transform:uppercase;letter-spacing:.05em}
+.ttl .tgt{margin-left:auto;text-transform:none;letter-spacing:0;font-weight:700;color:var(--acc2)}
+/* source stage: room around the video so frames can reach beyond it (black there in the result) */
+#stage{position:relative;padding:6% 8%;background:repeating-conic-gradient(#141418 0 25%,#101013 0 50%) 0 0/18px 18px;border-radius:8px;overflow:hidden;user-select:none;touch-action:none}
+#stage video{width:100%;display:block;border-radius:3px;background:#000}
+#stage .vbox{position:relative;line-height:0}
+#peekv{position:absolute;inset:0;width:100%;height:100%;object-fit:fill;display:none}
+.fr{position:absolute;border:2px solid;cursor:move;touch-action:none}
+.fr.cam{border-color:var(--cam);background:rgba(57,211,83,.07)}.fr.game{border-color:var(--game);border-style:dashed;background:rgba(88,166,255,.05)}
+.fr span{position:absolute;left:3px;top:3px;font:700 10px system-ui;color:#000;padding:1px 4px;border-radius:3px;line-height:1.3;pointer-events:none}
+.fr.cam span{background:var(--cam)}.fr.game span{background:var(--game)}
+.fr.game span{top:auto;bottom:3px}
+.h{position:absolute;width:14px;height:14px;background:#fff;border:2px solid #000;border-radius:3px;transform:translate(-50%,-50%)}
+.fr.cam .h{background:var(--cam)}.fr.game .h{background:var(--game)}
+.h[data-h=nw]{left:0;top:0;cursor:nwse-resize}.h[data-h=ne]{left:100%;top:0;cursor:nesw-resize}.h[data-h=sw]{left:0;top:100%;cursor:nesw-resize}.h[data-h=se]{left:100%;top:100%;cursor:nwse-resize}
+.h[data-h=n]{left:50%;top:0;cursor:ns-resize}.h[data-h=s]{left:50%;top:100%;cursor:ns-resize}.h[data-h=w]{left:0;top:50%;cursor:ew-resize}.h[data-h=e]{left:100%;top:50%;cursor:ew-resize}
+.srcbar{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-top:8px}
+/* perspective strip under the source */
+.pstrip{display:flex;gap:6px;overflow-x:auto;padding:8px 0 2px}
+.pchip{flex:none;display:flex;gap:7px;align-items:center;border:1px solid var(--line);background:var(--panel2);border-radius:10px;padding:4px 8px 4px 4px;cursor:pointer}
+.pchip img{width:56px;height:32px;object-fit:cover;border-radius:6px;background:#000}
+.pchip .i{display:flex;flex-direction:column;line-height:1.2}.pchip small{color:var(--mute);font-size:11px}
+.pchip.on{border-color:var(--acc2);box-shadow:0 0 0 1px var(--acc2)}.pchip.off{opacity:.45}
+/* preview */
+.pvbox{display:flex;flex-direction:column;gap:6px}
+#pv{width:340px;height:604px;background:#000;border-radius:10px;display:block;touch-action:none}
+@media(max-width:760px){#pv{width:min(340px,100%);height:auto;aspect-ratio:9/16;margin:0 auto}}
+/* side tabs */
+.tabs{display:flex;gap:3px;margin-bottom:10px;flex-wrap:wrap}
+.tabs button{flex:1;padding:6px 4px;font-size:12px;font-weight:700}
+.tab[hidden]{display:none}
+.row{display:flex;gap:8px;align-items:center;margin:7px 0;flex-wrap:wrap}
+.row label{color:var(--mute)}
+.lst{display:flex;flex-direction:column;gap:5px}
+.it{display:flex;gap:8px;align-items:center;padding:6px 8px;border-radius:8px;background:var(--panel2)}
+.it.cur{outline:1px solid var(--kf)}
+.it .tm{font-variant-numeric:tabular-nums;color:var(--acc2);cursor:pointer;min-width:52px}
+.it .grow{flex:1;min-width:0}
+.it .x{padding:2px 7px}
+#subs{max-height:52vh;overflow:auto}
+.sub{display:grid;grid-template-columns:58px 58px 1fr 26px;gap:4px;margin-bottom:4px;align-items:center}
+.sub input[type=number]{width:100%;padding:4px}.sub input[type=text]{width:100%}
+.sub.cur input[type=text]{border-color:var(--kf)}
+.sub button{padding:3px}
+textarea{width:100%;height:120px}
+/* timeline */
+.tlwrap{position:sticky;bottom:0;z-index:15;margin-top:14px;background:rgba(12,12,15,.94);backdrop-filter:blur(10px);border-top:1px solid var(--line);padding:8px 16px 10px}
+.ctrls{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:8px}
+.ctrls .t{font-variant-numeric:tabular-nums;min-width:120px;color:var(--mute);font-size:12px}
+.ctrls .sp{flex:1}
+kbd{background:var(--panel2);border:1px solid var(--line);border-radius:4px;padding:0 4px;font:11px ui-monospace,monospace;color:var(--mute)}
+#tl{position:relative;height:66px;background:var(--panel);border:1px solid var(--line);border-radius:8px;cursor:pointer;touch-action:none;user-select:none;overflow:hidden}
+#tl .lane{position:absolute;left:0;right:0}
+#tl .out{position:absolute;top:0;bottom:0;background:rgba(0,0,0,.6);pointer-events:none}
+#tl .trim{position:absolute;top:0;bottom:0;width:14px;background:var(--acc);border-radius:4px;cursor:ew-resize;display:grid;place-items:center;color:#fff;font-size:10px;font-weight:800}
+#tl .cut{position:absolute;top:22px;height:22px;background:repeating-linear-gradient(45deg,rgba(248,81,73,.75) 0 6px,rgba(248,81,73,.4) 6px 12px);border:1px solid var(--cut);border-radius:4px}
+#tl .cut.sel{outline:2px solid #fff}
+#tl .cut i{position:absolute;top:0;bottom:0;width:9px;cursor:ew-resize}#tl .cut i.a{left:-4px}#tl .cut i.b{right:-4px}
+#tl .sw{position:absolute;top:4px;height:15px;border-radius:4px;background:rgba(37,244,238,.25);border-left:2px solid var(--acc2);font-size:10px;font-weight:700;color:var(--acc2);padding-left:4px;overflow:hidden;white-space:nowrap}
+#tl .kf{position:absolute;top:48px;width:12px;height:12px;background:var(--kf);transform:translateX(-50%) rotate(45deg);border:1px solid #000;cursor:grab}
+#tl .kf.sel{background:#fff}
+#tl .kf .ease{position:absolute}
+#tl .mk{position:absolute;top:0;bottom:0;width:2px;background:#fff;opacity:.7;pointer-events:none}
+#tl .mk b{position:absolute;top:0;left:3px;font-size:9px}
+#tl .mark{position:absolute;top:22px;height:22px;background:rgba(255,255,255,.18);border:1px dashed #fff;pointer-events:none;border-radius:4px}
+#tl .ph{position:absolute;top:0;bottom:0;width:2px;background:#fff;pointer-events:none;box-shadow:0 0 4px #000}
+#tl .tick{position:absolute;bottom:0;height:5px;width:1px;background:#444;pointer-events:none}
 </style>
 
-<div id="prep" hidden><div class="spin"></div><div id="prepMsg">Clip wird vorbereitet: Download, Facecam-Erkennung, Transkription…</div><a href="/">← zurück zur Liste</a></div>
-<a href="/">← Alle Clips</a>
-<h2 id="title">…</h2>
+<div id="prep" hidden><div class="spin"></div><div id="prepMsg">Clip wird vorbereitet: Download, Facecam-Erkennung, Transkription…</div><a href="/edit">← zurück zur Liste</a></div>
+
+<header>
+  <a href="/edit" title="Zur Edit-Liste">←</a>
+  <h1 id="title">…</h1>
+  <span id="msg"></span>
+  <button class="no" id="reject">Ignorieren</button>
+  <button class="ok" id="approve">Exportieren & weiter ➜</button>
+</header>
 
 <div class="wrap">
-  <div class="panel">
-    <h3>Quelle · Facecam & Schnitt</h3>
-    <div id="stage">
-      <video id="src" controls playsinline preload="auto"></video>
-      <div id="game"></div>
-      <div id="cam"><span>Facecam</span><div class="h"></div></div>
+  <section class="panel">
+    <div class="ttl">Quelle · Rahmen ziehen <span class="tgt" id="tgt1"></span></div>
+    <div id="stage"><div class="vbox" id="vbox">
+      <video id="src" playsinline preload="auto"></video>
+      <video id="peekv" muted playsinline></video>
+      <div class="fr game" id="frGame"><span>Spiel</span></div>
+      <div class="fr cam" id="frCam"><span>Facecam</span></div>
+    </div></div>
+    <div class="srcbar">
+      <label><input type="checkbox" id="hasCam"> Facecam</label>
+      <button id="redetect" title="Facecam in diesem Clip automatisch suchen">🔍 Facecam erkennen</button>
+      <button id="gameFull" title="Spiel: ganze Höhe, mittig">↕ Spiel ganze Höhe</button>
+      <span class="hint">Rahmen verschieben, an Ecken/Kanten größer/kleiner, Mausrad = Zoom. Grün = Facecam, blau = Spiel.</span>
     </div>
-    <div class="row">
-      <label><input type="checkbox" id="hasCam"> Facecam vorhanden</label>
-      <button id="redetect" title="Facecam in diesem Clip automatisch suchen">Facecam neu erkennen</button>
-      <span class="hint">wird automatisch für @<span id="who"></span> gemerkt</span>
-    </div>
-    <div class="row">
-      <label for="gx">Spiel-Ausschnitt (horizontal)</label>
-      <input type="range" id="gx" min="0" max="1" step="0.01" style="flex:1">
-    </div>
-    <div class="row">
-      <label for="zoom" title="Mehr vom Stream zeigen, mit schwarzen Balken oben und unten">Mehr Sicht (Balken)</label>
-      <input type="range" id="zoom" min="0" max="1" step="0.01" style="flex:1">
-    </div>
-    <h3 style="margin-top:14px">Länge</h3>
-    <div class="row">
-      <label>Start</label><input type="number" id="ts" step="0.1" min="0">
-      <button id="setS">= aktuelle Zeit</button>
-      <label>Ende</label><input type="number" id="te" step="0.1" min="0">
-      <button id="setE">= aktuelle Zeit</button>
-    </div>
-    <div class="row"><span class="hint" id="durInfo"></span>
-      <button id="playTrim">▶ Ausschnitt abspielen</button></div>
-    <h3 style="margin-top:14px">Ausschneiden</h3>
-    <div id="cuts"></div>
-    <div class="row"><button id="addCut">+ Bereich ausschneiden</button>
-      <span class="hint">Start und Ende markieren; der Bereich wird aus dem finalen Video entfernt.</span></div>
-    <h3 style="margin-top:14px">Perspektiven · gleiche Szene, andere Streams</h3>
-    <div id="persp" class="hint">Suche…</div>
-    <div class="row"><button id="backMain">↩ ab hier wieder @<span class="who2"></span></button>
-      <span class="hint">Wechsel gelten ab der aktuellen Videozeit</span></div>
-    <div id="switches"></div>
-    <p class="hint">Im Wechsel-Abschnitt laufen Bild, Facecam, Ton und Untertitel des anderen Streams
-      (Untertitel dort automatisch aus dessen Transkript). Die Vorschau zeigt das Bild, Ton erst im Render.</p>
-  </div>
+    <div class="pstrip" id="pstrip"></div>
+  </section>
 
-  <div class="panel">
-    <h3>Live-Vorschau</h3>
-    <canvas id="pv" width="360" height="640"></canvas>
-    <div class="row"><span class="hint">Trennlinie ziehen = Facecam größer/kleiner</span>
-      <span id="splitInfo" class="hint"></span><button id="resetSplit">Zurücksetzen</button></div>
-    <p class="hint">Vereinfachte Vorschau. Das finale Video wird mit „Speichern & Rendern“ erzeugt.</p>
-  </div>
+  <section class="pvbox">
+    <canvas id="pv" width="540" height="960"></canvas>
+    <div class="hint" style="max-width:340px">Vorschau · Trennlinie ziehen = Facecam-Höhe <span id="splitInfo"></span> ·
+      im Bild ziehen = Ausschnitt verschieben, Mausrad / zwei Finger = Zoom</div>
+  </section>
 
-  <div class="panel">
-    <h3>Untertitel</h3>
-    <div class="hint" style="margin-bottom:6px">Start · Ende · Text — Klick auf Zeit springt dorthin. Text ändern verteilt das Timing neu.</div>
-    <div id="subs"></div>
-    <div class="row"><button id="addSub">+ Zeile bei aktueller Zeit</button></div>
-    <h3 style="margin-top:14px">Titel-Einblendung (erste Sekunden)</h3>
-    <input type="text" id="otitle" style="width:100%" placeholder="leer = kein Titel">
-    <h3 style="margin-top:14px">Beschreibung (TikTok)</h3>
-    <textarea id="caption"></textarea>
-  </div>
+  <section class="panel side">
+    <div class="tabs" id="tabs"><button data-tab="pic" class="on">Bild</button><button data-tab="persp">Perspektiven</button>
+      <button data-tab="kf">Keyframes</button><button data-tab="subs">Untertitel</button><button data-tab="text">Text</button></div>
+
+    <div class="tab" data-tab="pic">
+      <div class="ttl">Bearbeitet gerade <span class="tgt" id="tgt2"></span></div>
+      <div class="row"><label style="width:110px">Facecam-Zoom</label><input type="range" id="zCam" min="-1" max="1" step="0.01" style="flex:1"></div>
+      <div class="row"><label style="width:110px">Spiel-Zoom</label><input type="range" id="zGame" min="-1" max="1" step="0.01" style="flex:1"></div>
+      <div class="row"><label style="width:110px">Facecam-Höhe</label><input type="range" id="camH" min="240" max="1400" step="2" style="flex:1"><button id="resetSplit">↺</button></div>
+      <p class="hint">Was im Rahmen liegt, ist genau das, was im Video zu sehen ist. Ragt ein Rahmen über das Bild hinaus,
+        bleibt dieser Teil schwarz (z. B. Spiel kleiner mit Balken). Facecam, Höhe und Spiel-Rahmen werden als Standard für
+        den Streamer gemerkt.</p>
+      <p class="hint" id="kfHint"></p>
+    </div>
+
+    <div class="tab" data-tab="persp" hidden>
+      <p class="hint" style="margin-top:0">Andere Streams zur gleichen Zeit. Antippen = Vorschau (wird geladen und gespeichert),
+        „⇄ ab hier“ wechselt im Video ab der aktuellen Zeit. In einem Wechsel-Abschnitt bearbeitest du Facecam- und Spiel-Rahmen
+        dieser Perspektive.</p>
+      <div class="lst" id="persp"><span class="hint">Suche…</span></div>
+      <div class="ttl" style="margin-top:12px">Wechsel im Video</div>
+      <div class="lst" id="switches"></div>
+      <div class="row"><button id="backMain">↩ ab hier wieder @<span class="who2"></span></button></div>
+    </div>
+
+    <div class="tab" data-tab="kf" hidden>
+      <p class="hint" style="margin-top:0">Keyframes ändern Facecam- und Spiel-Rahmen während des Clips: ab dem Keyframe gilt
+        sein Layout, als Sprung oder fließender Übergang. Zwischen zwei Keyframes bearbeitest du das Layout des vorherigen.</p>
+      <div class="row"><button id="addKf">◆ Keyframe hier <kbd>K</kbd></button></div>
+      <div class="lst" id="kfs"></div>
+    </div>
+
+    <div class="tab" data-tab="subs" hidden>
+      <div class="hint" style="margin-bottom:6px">Start · Ende · Text — Klick in eine Zeile springt dorthin. Text ändern verteilt das Timing neu.</div>
+      <div id="subs"></div>
+      <div class="row"><button id="addSub">+ Zeile bei aktueller Zeit</button></div>
+    </div>
+
+    <div class="tab" data-tab="text" hidden>
+      <div class="ttl">Titel-Einblendung (erste Sekunden)</div>
+      <input type="text" id="otitle" style="width:100%" placeholder="leer = kein Titel">
+      <div class="ttl" style="margin-top:14px">Beschreibung (TikTok)</div>
+      <textarea id="caption"></textarea>
+    </div>
+  </section>
 </div>
 
-<div class="panel" style="margin-top:16px">
-  <div class="row">
-    <button class="ok" id="approve">Exportieren & weiter ➜</button>
-    <button class="no" id="reject">Ignorieren</button>
-    <span id="msg"></span>
+<div class="tlwrap">
+  <div class="ctrls">
+    <button id="play" title="Leertaste">▶</button>
+    <button id="back1" title="−0,1 s (←)">−0,1</button><button id="fwd1" title="+0,1 s (→)">+0,1</button>
+    <span class="t" id="tinfo"></span>
+    <button id="setS" title="Start auf aktuelle Zeit">[ Start</button><button id="setE" title="Ende auf aktuelle Zeit">Ende ]</button>
+    <button id="markIn" title="Markierung Anfang (I)">⇤ Markierung <kbd>I</kbd></button><button id="markOut" title="Markierung Ende (O)">Markierung ⇥ <kbd>O</kbd></button>
+    <button id="cutBtn" title="Markierten Bereich (oder 1 s ab hier) herausschneiden (X)">✂ Ausschneiden <kbd>X</kbd></button>
+    <button id="delSel" disabled title="Auswahl löschen (Entf)">🗑</button>
+    <span class="sp"></span>
+    <button id="addKf2" title="Keyframe hier (K)">◆ Keyframe</button>
+    <button id="playTrim">▶ Ausschnitt</button>
   </div>
-  <p class="hint">Änderungen werden automatisch gespeichert (Facecam, Ausschnitt und Aufteilung auch als Standard für diesen Streamer).
-    „Exportieren & weiter“ rendert im Hintergrund, legt den Clip in den Scheduler und öffnet den nächsten.</p>
+  <div id="tl"></div>
 </div>
 
 <script>
 const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const id = location.pathname.split('/').pop();
 const src = $('src'), cv = $('pv'), ctx = cv.getContext('2d');
-let S;            // clip state from server
-let R;            // render dims
+let S, R;  // clip state from the server, render dims
 let dirty = false, saveTimer = null;
-
 const fmt = n => (Math.round(n * 10) / 10).toFixed(1);
+const fmtT = s => `${Math.floor(s / 60)}:${(s % 60).toFixed(1).padStart(4, '0')}`;
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const r4 = f => f && f.map(v => Math.round(v * 100000) / 100000);
 function msg(t, err) { $('msg').textContent = t; $('msg').className = err ? 'err' : ''; }
-// every change is saved shortly after (edit state + the streamer's facecam layout); no render
+// every change is saved shortly after (edit state + the streamer's default layout); no render
 function markDirty() { dirty = true; msg('Speichert…'); clearTimeout(saveTimer); saveTimer = setTimeout(save, 800); }
-
 async function api(path, body) {
   const r = await fetch(path, { method: 'POST', body: JSON.stringify(body || {}) });
-  const j = await r.json();
+  const j = await r.json().catch(() => ({}));
   if (!r.ok) throw new Error(j.error || r.statusText);
   return j;
 }
 
-// ---------- load ----------
+// ================= layout geometry (mirrors layout.py) =================
+// frame = [x, y, w, h] of the source (0..1), aspect of its output area; may reach beyond the source (black there)
+const camH = () => S.cam_h || R.cam_height;
+const areaAspect = (region, hasCam) => R.width / (region === 'cam' ? camH() : R.height - (hasCam ? camH() : 0));
+function refit(f, aspect, vw, vh, keep) {  // same center; keep width (facecam) or height (game)
+  let [x, y, w, h] = f; const cx = x + w / 2, cy = y + h / 2;
+  if (keep === 'w') h = w * vw / (vh * aspect); else w = h * vh * aspect / vw;
+  return r4([cx - w / 2, cy - h / 2, w, h]);
+}
+function cover(f, aspect, vw, vh) {  // largest frame of the aspect inside f (older facecam boxes)
+  let [x, y, w, h] = f;
+  if (w * vw / (h * vh) > aspect) { const nw = h * vh * aspect / vw; return r4([x + (w - nw) / 2, y, nw, h]); }
+  const nh = w * vw / (vh * aspect); return r4([x, y + (h - nh) / 2, w, nh]);
+}
+function legacyGame(gx, zoom, vw, vh, gh) {  // game_x + zoom (older clips) -> frame
+  const fw = Math.min(vw, vh * R.width / gh), w = fw + clamp(zoom || 0, 0, 1) * (vw - fw);
+  const x = clamp((gx ?? 0.5) * vw - w / 2, 0, vw - w), h = w * gh / R.width / vh;
+  return r4([x / vw, (1 - h) / 2, w / vw, h]);
+}
+const fullGame = (vw, vh, hasCam) => legacyGame(0.5, 0, vw, vh, R.height - (hasCam ? camH() : 0));
+// a layout holder {cam, game} (clip, keyframe, perspective switch, joined part) made consistent for this cam_h
+function normalize(o, vw, vh) {
+  if (o.cam) o.cam = cover(o.cam, areaAspect('cam'), vw, vh);
+  o.game = o.game ? refit(o.game, areaAspect('game', !!o.cam), vw, vh, 'h') : legacyGame(o.game_x, o.zoom ?? S.zoom, vw, vh, R.height - (o.cam ? camH() : 0));
+}
+function refitAll() {  // facecam height changed: every frame keeps its center (facecam its width, game its height)
+  for (const { o, vw, vh } of holders()) {
+    if (o.cam) o.cam = refit(o.cam, areaAspect('cam'), vw, vh, 'w');
+    if (o.game) o.game = refit(o.game, areaAspect('game', !!o.cam), vw, vh, 'h');
+  }
+}
+function holders() {
+  const m = { vw: src.videoWidth, vh: src.videoHeight }, out = [{ o: S, ...m }, ...S.keyframes.map(o => ({ o, ...m }))];
+  (S.segments || []).forEach(o => out.push({ o, ...m }));
+  for (const s of S.switches) if (s.clip && s.game && PV[s.clip]?.vw) out.push({ o: s, vw: PV[s.clip].vw, vh: PV[s.clip].vh });
+  for (const p of Object.values(PV)) if (p.layout && p.vw) out.push({ o: p.layout, vw: p.vw, vh: p.vh });
+  return out;
+}
+// keyframes: from t on their frames, reached over `ease` seconds (mirrors layout.at)
+function frameAt(region, t) {
+  let cur = S[region];
+  const ks = S.keyframes.filter(k => k[region]);
+  for (let i = 0; i < ks.length; i++) {
+    const k = ks[i]; if (t < k.t) break;
+    const e = Math.min(k.ease || 0, (ks[i + 1]?.t ?? 1e9) - k.t);
+    if (e > 0 && t < k.t + e) { const a = (t - k.t) / e; return cur.map((v, j) => v + (k[region][j] - v) * a); }
+    cur = k[region];
+  }
+  return cur;
+}
+
+// ================= what is shown / edited at a time =================
+// perspective (switch or preview) > part of a joined clip > keyframe > the clip's own layout
+let peek = null;  // perspective shown for review only: { clip, off, streamer }
+const PV = {};    // clip id -> { v: <video>, layout: {cam, game}, off, vw, vh }
+function activeSwitch(t) {
+  if (peek) { const p = PV[peek.clip], end = p?.v.duration ? p.v.duration - peek.off : Infinity; return t + peek.off >= 0 && t < end ? peek : null; }
+  let a = null;
+  for (const s of S.switches) if (s.t <= t) a = s;
+  if (!a?.clip) return null;
+  const p = PV[a.clip], end = p?.v.duration ? p.v.duration - a.off : Infinity;
+  return t + a.off >= 0 && t < end ? a : null;  // outside the other clip -> main clip
+}
+function target(t = src.currentTime) {
+  const sw = activeSwitch(t), pv = sw && PV[sw.clip];
+  if (sw && pv?.vw) {
+    const o = sw === peek ? pv.layout : (sw.game ? sw : Object.assign(sw, { cam: pv.layout.cam && [...pv.layout.cam], game: [...pv.layout.game] }));
+    return { kind: sw === peek ? 'peek' : 'switch', o, v: pv.v, vw: pv.vw, vh: pv.vh, streamer: sw.streamer, off: sw.off };
+  }
+  const m = { v: src, vw: src.videoWidth, vh: src.videoHeight, off: 0 };
+  if (S.segments) { const i = partAt(t); return { kind: 'part', o: S.segments[i], streamer: S.segments[i].streamer, i, ...m }; }
+  let k = null;
+  for (const x of S.keyframes) if (x.t <= t + 1e-3) k = x;
+  if (k) {  // a keyframe holds only what it changes: missing regions are filled from what applies before it
+    if (!k.game) k.game = [...frameAt('game', k.t - 1e-3)];
+    if (S.cam && !k.cam) k.cam = [...frameAt('cam', k.t - 1e-3)];
+    return { kind: 'kf', o: k, streamer: S.streamer, ...m };
+  }
+  return { kind: 'base', o: S, streamer: S.streamer, ...m };
+}
+// frames drawn at time t (keyframe transitions interpolated)
+function shownFrames(T) {
+  if (T.kind === 'base' || T.kind === 'kf') return { cam: S.cam ? frameAt('cam', src.currentTime) : null, game: frameAt('game', src.currentTime) };
+  return T.o;
+}
+const partAt = t => S.segments ? Math.max(0, S.segments.findLastIndex(p => t >= p.start - 0.01)) : 0;
+function targetLabel(T) {
+  return T.kind === 'peek' ? `👁 Vorschau @${T.streamer}` : T.kind === 'switch' ? `⇄ Perspektive @${T.streamer}`
+    : T.kind === 'part' ? `Teil ${T.i + 1} · @${T.streamer}` : T.kind === 'kf' ? `◆ Keyframe ${fmtT(T.o.t)}` : 'Grundlayout';
+}
+
+// ================= load =================
 async function load() {
   S = await (await fetch('/api/clip/' + id)).json();
   if (!S.subs || !S.raw_path) {  // not prepared yet (download + detect + transcribe) or videos dropped after export
@@ -166,279 +319,396 @@ async function load() {
   }
   R = S.render;
   S.cam_h = S.cam_h || R.cam_height;
-  $('who').textContent = S.streamer;
-  $('title').innerHTML = `@${S.streamer} — ${S.title.replace(/</g, '&lt;')}<span class="badge">${S.status}</span>`;
-  src.src = '/raw/' + id;
+  $('title').innerHTML = `@${esc(S.streamer)} — ${esc(S.title)}<span class="badge">${esc(S.status)}</span>`;
+  document.querySelectorAll('.who2').forEach(e => e.textContent = S.streamer);
   S.subs = S.subs || [];
   S.cuts = S.cuts ? JSON.parse(S.cuts) : [];
-  S.game_x = S.game_x ?? 0.5;
-  $('hasCam').checked = !!S.cam;
-  $('gx').value = S.game_x;
-  S.zoom = S.zoom ?? 0; $('zoom').value = S.zoom;
+  S.switches = S.switches ? JSON.parse(S.switches) : [];
+  S.segments = S.segments ? JSON.parse(S.segments) : null;
+  S.keyframes = S.keyframes || [];
   $('caption').value = S.caption || '';
   $('otitle').value = S.overlay_title ?? S.title;
   lastTitle = $('otitle').value.trim() || null;
+  src.src = '/raw/' + id;
   src.addEventListener('loadedmetadata', () => {
+    const vw = src.videoWidth, vh = src.videoHeight;
     if (S.trim_end == null) S.trim_end = src.duration;
-    $('ts').value = fmt(S.trim_start || 0); $('te').value = fmt(S.trim_end);
-    $('ts').max = $('te').max = src.duration.toFixed(2);
+    if (S.segments) { S.segments.forEach(p => normalize(p, vw, vh)); Object.assign(S, { cam: S.segments[0].cam, game: S.segments[0].game }); }
+    else normalize(S, vw, vh);
+    S.keyframes.forEach(k => { if (k.cam) k.cam = cover(k.cam, areaAspect('cam'), vw, vh); if (k.game) k.game = refit(k.game, areaAspect('game', !!S.cam), vw, vh, 'h'); });
     src.currentTime = S.trim_start || 0;
-    if (!S.cam) S._lastCam = defaultCam();
-    layoutBoxes(); updDur(); updSplit();
+    S._lastCam = S.cam || defaultCam(vw, vh);
+    $('tabs').querySelector('[data-tab=kf]').hidden = !!S.segments;  // joined clips: each part has its own layout
+    $('camH').value = camH();
+    drawAll();
   }, { once: true });
   renderSubs();
-  drawCuts();
-  document.querySelectorAll('.who2').forEach(e => e.textContent = S.streamer);
-  S.switches = (S.switches ? JSON.parse(S.switches) : []);
-  S.segments = S.segments ? JSON.parse(S.segments) : null;
-  if (S.segments) S.segments[0] = { ...S.segments[0], cam: S.cam, game_x: S.game_x };
   loadPersp();
 }
+const defaultCam = (vw, vh) => { const w = 0.25; return r4([0.73, 0.02, w, w * vw / (vh * areaAspect('cam'))]); };
+function drawAll() { layoutBoxes(); drawTimeline(); drawKfs(); drawSwitches(); drawPersp(); updSplit(); }
 
-// ---------- joined clip: every part keeps its own facecam layout; the controls edit the part being played ----------
-let curPart = 0;
-const partAt = t => S.segments ? Math.max(0, S.segments.findLastIndex(p => t >= p.start - 0.01)) : 0;
-function keepPart() { if (S.segments) Object.assign(S.segments[curPart], { cam: S.cam, game_x: S.game_x }); }
-function syncPart() {
-  if (!S?.segments) return;
-  const i = partAt(src.currentTime);
-  if (i === curPart) return;
-  keepPart();
-  curPart = i;
-  S.cam = S.segments[i].cam; S.game_x = S.segments[i].game_x ?? 0.5;
-  $('hasCam').checked = !!S.cam; $('gx').value = S.game_x;
-  document.querySelectorAll('.who2').forEach(e => e.textContent = S.segments[i].streamer);
-  layoutBoxes();
-}
-src.addEventListener('timeupdate', syncPart);
-src.addEventListener('seeked', syncPart);
-const curStreamer = () => S.segments ? S.segments[curPart].streamer : S.streamer;
-
-// ---------- facecam box (normalized coords, aspect locked to output cam area) ----------
-const CH = () => S.cam_h || R.cam_height;             // facecam area height in output px
-const camAspect = () => R.width / CH();
-const subsY = () => Math.min(Math.max(R.subs_y, CH() + 170), R.height - 300);  // mirrors effective_render()
-const vAR = () => (src.videoWidth || 16) / (src.videoHeight || 9);
-function defaultCam() { const w = 0.3; return [0.7 - 0.02, 0.02, w, w * vAR() / camAspect()]; }
-
+// ================= source stage: facecam + game frames =================
+let lastTgtKey = '';
 function layoutBoxes() {
-  const box = $('cam'), W = src.clientWidth, H = src.clientHeight;
-  box.style.display = S.cam ? 'block' : 'none';
-  if (S.cam) {
-    const [x, y, w, h] = S.cam;
-    Object.assign(box.style, { left: x * W + 'px', top: y * H + 'px', width: w * W + 'px', height: h * H + 'px' });
-  }
-  const g = gameWin();
-  Object.assign($('game').style, { left: g.x / src.videoWidth * W + 'px', width: g.w / src.videoWidth * W + 'px' });
+  if (!S || !src.videoWidth) return;
+  const T = target(), f = T.o;  // the frames being edited (keyframe transitions: the keyframe's target)
+  const key = T.kind + (T.o.t ?? '') + (T.streamer || '');
+  if (key !== lastTgtKey) { lastTgtKey = key; $('tgt1').textContent = $('tgt2').textContent = targetLabel(T); syncZoomSliders(); }
+  const vb = $('vbox'), W = vb.clientWidth, H = vb.clientHeight;
+  const put = (el, fr) => {
+    el.style.display = fr ? 'block' : 'none';
+    if (fr) Object.assign(el.style, { left: fr[0] * W + 'px', top: fr[1] * H + 'px', width: fr[2] * W + 'px', height: fr[3] * H + 'px' });
+  };
+  put($('frCam'), f.cam); put($('frGame'), f.game);
+  $('hasCam').checked = !!f.cam;
+  // the source shows the perspective being edited
+  const pk = $('peekv');
+  if (T.v !== src) { if (pk.src !== T.v.src) { pk.src = T.v.src; pk.currentTime = T.v.currentTime; } pk.style.display = 'block'; }
+  else pk.style.display = 'none';
 }
-new ResizeObserver(layoutBoxes).observe(src);
+new ResizeObserver(layoutBoxes).observe($('vbox'));
+['frCam', 'frGame'].forEach(n => { const el = $(n); ['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w'].forEach(h => { const d = document.createElement('div'); d.className = 'h'; d.dataset.h = h; el.appendChild(d); }); });
 
 let drag = null;
-$('cam').addEventListener('pointerdown', e => {
-  e.preventDefault();
-  drag = { mode: e.target.classList.contains('h') ? 'resize' : 'move', x: e.clientX, y: e.clientY, cam: [...S.cam] };
-  $('cam').setPointerCapture(e.pointerId);
-});
-$('cam').addEventListener('pointermove', e => {
+function startDrag(e, region) {
+  e.preventDefault(); e.stopPropagation();
+  const T = target(), f = T.o[region];
+  if (!f) return;
+  const r = $('vbox').getBoundingClientRect();
+  drag = { region, T, h: e.target.dataset.h || null, f: [...f], r, x: (e.clientX - r.left) / r.width, y: (e.clientY - r.top) / r.height };
+  e.target.setPointerCapture(e.pointerId);
+}
+function moveDrag(e) {
   if (!drag) return;
-  const dx = (e.clientX - drag.x) / src.clientWidth, dy = (e.clientY - drag.y) / src.clientHeight;
-  let [x, y, w, h] = drag.cam;
-  if (drag.mode === 'move') {
-    x = clamp(x + dx, 0, 1 - w); y = clamp(y + dy, 0, 1 - h);
-  } else {
-    w = clamp(w + dx, 0.05, 1 - x);
-    h = w * vAR() / camAspect();
-    if (y + h > 1) { h = 1 - y; w = h * camAspect() / vAR(); }
+  const { region, T, h, f, r } = drag;
+  const px = (e.clientX - r.left) / r.width, py = (e.clientY - r.top) / r.height;
+  let [x, y, w, hh] = f;
+  const ratio = hh / w;  // aspect locked: what is in the frame is what the area shows
+  if (!h) { x = clamp(x + px - drag.x, 0.02 - w, 0.98); y = clamp(y + py - drag.y, 0.02 - hh, 0.98); }
+  else {
+    const fx = { w: 0, e: 1 }[h.at(-1)] ?? 0.5, fy = { n: 0, s: 1 }[h[0]] ?? 0.5;
+    const ax = x + (1 - fx) * w, ay = y + (1 - fy) * hh;  // anchor: opposite corner / edge (center of the other axis)
+    let nw = fx !== 0.5 ? Math.abs(px - ax) / Math.abs(fx - (1 - fx) || 1) : Math.abs(py - ay) / Math.abs(fy - (1 - fy) || 1) / ratio;
+    if (fx === 0.5 && fy === 0.5) nw = w;
+    nw = clamp(nw, 0.03, 3);
+    w = nw; hh = nw * ratio; x = ax - (1 - fx) * w; y = ay - (1 - fy) * hh;
   }
-  S.cam = [x, y, w, h].map(v => Math.round(v * 10000) / 10000);
+  T.o[region] = r4([x, y, w, hh]);
+  if (region === 'cam' && T.o === S) S._lastCam = S.cam;
   layoutBoxes(); markDirty();
-});
-$('cam').addEventListener('pointerup', () => drag = null);
-
+}
+for (const [n, region] of [['frCam', 'cam'], ['frGame', 'game']]) {
+  $(n).addEventListener('pointerdown', e => startDrag(e, region));
+  $(n).addEventListener('pointermove', moveDrag);
+  $(n).addEventListener('pointerup', () => drag = null);
+  $(n).addEventListener('wheel', e => { e.preventDefault(); zoomFrame(region, e.deltaY > 0 ? 1.05 : 1 / 1.05); }, { passive: false });
+}
+function zoomFrame(region, k, T = target()) {  // k > 1: frame bigger = zoomed out
+  const f = T.o[region]; if (!f) return;
+  const [x, y, w, h] = f, cx = x + w / 2, cy = y + h / 2, nw = clamp(w * k, 0.03, 3), nh = h * nw / w;
+  T.o[region] = r4([cx - nw / 2, cy - nh / 2, nw, nh]);
+  layoutBoxes(); syncZoomSliders(); markDirty();
+}
+// zoom sliders: log scale around the frame's size when the target was selected
+let zBase = {};
+function syncZoomSliders() {
+  const T = target();
+  zBase = { cam: T.o.cam?.[2], game: T.o.game?.[2] };
+  $('zCam').value = 0; $('zGame').value = 0; $('zCam').disabled = !T.o.cam;
+}
+for (const [el, region] of [['zCam', 'cam'], ['zGame', 'game']]) $(el).oninput = e => {
+  const T = target(), f = T.o[region]; if (!f || !zBase[region]) return;
+  zoomFrame(region, zBase[region] * Math.pow(3, -e.target.value) / f[2], T);
+};
 $('hasCam').onchange = e => {
-  if (e.target.checked) S.cam = S._lastCam || defaultCam();
-  else { S._lastCam = S.cam; S.cam = null; }
+  const T = target(), o = T.o;
+  if (e.target.checked) o.cam = o === S ? S._lastCam || defaultCam(T.vw, T.vh) : defaultCam(T.vw, T.vh);
+  else { if (o === S) S._lastCam = S.cam; o.cam = null; }
+  if (o === S) S.keyframes.forEach(k => { if (!S.cam) k.cam = null; });
+  if (o.game) o.game = refit(o.game, areaAspect('game', !!o.cam), T.vw, T.vh, 'h');
+  if (o === S) S.keyframes.forEach(k => { if (k.game) k.game = refit(k.game, areaAspect('game', !!S.cam), T.vw, T.vh, 'h'); });
   layoutBoxes(); markDirty();
 };
-$('gx').oninput = e => { S.game_x = +e.target.value; layoutBoxes(); markDirty(); };
-$('zoom').oninput = e => { S.zoom = +e.target.value; layoutBoxes(); markDirty(); };
+$('gameFull').onclick = () => { const T = target(); T.o.game = fullGame(T.vw, T.vh, !!T.o.cam); layoutBoxes(); syncZoomSliders(); markDirty(); };
+$('redetect').onclick = async () => {
+  const b = $('redetect'), T = target();
+  if (T.v !== src) return msg('Erkennung nur für den eigenen Stream', true);
+  b.disabled = true; b.textContent = 'Suche…';
+  try {
+    const { cam } = await api(`/api/clip/${id}/redetect`);
+    if (!cam) { msg('Keine Facecam gefunden', true); return; }
+    // facecam area sized so the whole detected cam fits
+    const asp = cam[2] * T.vw / (cam[3] * T.vh);
+    if (T.o === S) { S.cam_h = Math.round(clamp(R.width / asp, 240, 1400) / 2) * 2; $('camH').value = S.cam_h; }
+    const had = !!T.o.cam;
+    T.o.cam = cover(cam, areaAspect('cam'), T.vw, T.vh);
+    refitAll();
+    if (!had) T.o.game = refit(T.o.game, areaAspect('game', true), T.vw, T.vh, 'h');
+    layoutBoxes(); updSplit(); markDirty();
+    msg('Facecam erkannt ✓');
+  } catch (e) { msg(e.message, true); }
+  finally { b.disabled = false; b.textContent = '🔍 Facecam erkennen'; }
+};
 
-function gameWin() { return gameWinFor(src.videoWidth || 1920, src.videoHeight || 1080, S.game_x, !!S.cam); }
-function gameWinFor(vw, vh, gx, hasCam) {  // no facecam: the game fills the whole frame
-  const gh = R.height - (hasCam ? CH() : 0), fw = Math.min(vw, vh * R.width / gh);
-  const w = fw + clamp(S.zoom || 0, 0, 1) * (vw - fw);  // zoom: wider window, black bars (mirrors render.py)
-  const oh = Math.min(gh, R.width * vh / w);              // game height in output px
-  return { x: clamp(gx * vw - w / 2, 0, vw - w), w, vw, vh, gh, oh };
-}
-
-// ---------- perspectives: switch to another stream's clip of the same moment ----------
+// ================= perspectives =================
 let persp = [];
-const PV = {};  // clip id -> { v: hidden <video>, layout }
-const fmtT = s => `${Math.floor(s / 60)}:${(s % 60).toFixed(1).padStart(4, '0')}`;
 async function loadPersp() {
   persp = await (await fetch(`/api/clip/${id}/perspectives`)).json();
-  drawPersp(true); drawSwitches();
-  // download every perspective once, in the background (perspectives used by markers first);
-  // afterwards they stay loaded for switching back and forth
-  const used = new Set(S.switches.map(x => x.clip).filter(Boolean));
-  const order = [...persp].sort((a, b) => used.has(b.id) - used.has(a.id));
-  for (const p of order) {
-    const sw = S.switches.find(x => x.clip === p.id);
-    await attach(p.id, sw ? sw.off : p.off, sw ? sw.t : (p.from + p.to) / 2 - 3).catch(e => { p.err = e.message; });
-    drawPersp(true);
+  drawPersp();
+  // perspectives used by switches are loaded right away, others when clicked (download is kept)
+  for (const clip of new Set(S.switches.map(x => x.clip).filter(Boolean))) {
+    const sw = S.switches.find(x => x.clip === clip);
+    await attach(clip, sw.off, sw.t).catch(e => msg(e.message, true));
   }
 }
 const loading = {};
-function attach(clip, off, at) {  // download + sync offset + facecam layout, once per perspective
-  if (PV[clip]?.layout) return Promise.resolve(PV[clip]);
-  return loading[clip] ??= api(`/api/clip/${id}/align`, { other: clip, off, at: Math.max(0, at) }).then(j => {
+function attach(clip, off, at) {  // download + sync offset + layout, once per perspective
+  if (PV[clip]) return Promise.resolve(PV[clip]);
+  return loading[clip] ??= api(`/api/clip/${id}/align`, { other: clip, off, at: Math.max(0, at), cam_h: camH() }).then(j => new Promise(res => {
     const v = document.createElement('video');
     v.muted = true; v.preload = 'auto'; v.playsInline = true; v.src = '/raw/' + clip;
+    v.addEventListener('loadedmetadata', () => {
+      PV[clip] = { v, layout: j.layout, off: j.off, refined: j.refined, vw: v.videoWidth, vh: v.videoHeight };
+      normalize(PV[clip].layout, v.videoWidth, v.videoHeight);
+      for (const s of S.switches) if (s.clip === clip && s.game) normalize(s, v.videoWidth, v.videoHeight);
+      res(PV[clip]); drawPersp(); layoutBoxes();
+    }, { once: true });
     v.load();
-    return PV[clip] = { v, layout: j.layout, off: j.off, refined: j.refined };
-  }).finally(() => { delete loading[clip]; });
-}
-let peek = null;  // perspective shown for review only (no marker): { clip, off, streamer }
-function activeSwitch(t) {
-  if (peek) {
-    const p = PV[peek.clip], end = p?.v.duration ? p.v.duration - peek.off : Infinity;
-    return t + peek.off >= 0 && t < end ? peek : null;
-  }
-  let a = null;
-  for (const s of S.switches) if (s.t <= t) a = s;
-  if (!a?.clip) return null;
-  const p = PV[a.clip], end = p?.v.duration ? p.v.duration - a.off : Infinity;
-  return t + a.off >= 0 && t < end ? a : null;  // outside the other clip -> main clip
+  })).finally(() => { delete loading[clip]; });
 }
 function syncOthers(sw) {
-  src.muted = !!(peek && sw);  // reviewing: other stream's sound only where it covers the clip
+  src.muted = !!(peek && sw);  // preview: the other stream's sound where it covers the clip
   for (const [cid, p] of Object.entries(PV)) {
-    const heard = !!peek && sw?.clip === cid;  // reviewing: hear the other stream instead of the clip
-    p.v.muted = !heard;
+    p.v.muted = !(peek && sw?.clip === cid);
     if (!sw || sw.clip !== cid) { if (!p.v.paused) p.v.pause(); continue; }
-    const target = src.currentTime + sw.off;
-    if (Math.abs(p.v.currentTime - target) > 0.25) p.v.currentTime = target;
+    const t = src.currentTime + sw.off;
+    if (Math.abs(p.v.currentTime - t) > 0.25) p.v.currentTime = t;
     if (src.paused && !p.v.paused) p.v.pause();
     if (!src.paused && p.v.paused) p.v.play().catch(() => {});
   }
+  const pk = $('peekv');
+  if (pk.style.display === 'block' && sw && PV[sw.clip]) {
+    const v = PV[sw.clip].v;
+    if (Math.abs(pk.currentTime - v.currentTime) > 0.3) pk.currentTime = v.currentTime;
+    if (src.paused !== pk.paused) src.paused ? pk.pause() : pk.play().catch(() => {});
+  }
 }
 let perspKey = '';
-function drawPersp(force) {
-  const t = src.currentTime;
-  const key = persp.map(p => (t >= p.from && t < p.to ? 1 : 0) + (PV[p.id] ? 'l' : '')).join('');
-  if (key === perspKey && !force) return;  // re-render only when availability changes (keeps buttons clickable)
+function drawPersp(force = true) {
+  const t = src.currentTime, sw = activeSwitch(t);
+  const key = persp.map(p => (t >= p.from && t < p.to ? 1 : 0) + (PV[p.id] ? 'l' : '') + (loading[p.id] ? 'w' : '')).join('') + (peek?.clip || '') + (sw?.clip || '');
+  if (key === perspKey && !force) return;
   perspKey = key;
-  $('persp').innerHTML = persp.length ? persp.map((p, i) => `<div class="pp ${t >= p.from && t <= p.to ? 'here' : ''}">
-      <img src="${esc(p.thumbnail || '')}"><div class="i"><div><b>@${esc(p.streamer)}</b> · ${p.views} Views
-        <span class="hint">${PV[p.id] ? '· ✓ geladen' : p.err ? '· ✗ ' + esc(p.err) : '· ⤓ lädt…'}</span></div>
-      <div class="hint">${esc(p.title)} · deckt ${fmtT(p.from)}–${fmtT(p.to)}</div></div>
-      <button data-peek="${i}" class="${peek?.clip === p.id ? 'pri' : ''}" title="Nur ansehen, kein Wechsel-Marker">👁 ${peek?.clip === p.id ? 'aktiv' : 'ansehen'}</button>
-      <button data-pp="${i}" ${t >= p.from && t < p.to ? '' : 'disabled title="Videozeit liegt nicht in diesem Clip"'}>+ ab hier</button></div>`).join('')
-    : 'Keine Clips anderer Streams zur gleichen Zeit gefunden.';
-  $('persp').querySelectorAll('[data-pp]').forEach(b => b.onclick = () => addSwitch(persp[+b.dataset.pp], b));
-  $('persp').querySelectorAll('[data-peek]').forEach(b => b.onclick = () => togglePeek(persp[+b.dataset.peek], b));
+  const here = p => t >= p.from && t < p.to;
+  const state = p => PV[p.id] ? '' : loading[p.id] ? ' · lädt…' : p.ready ? '' : ' · ⤓';
+  // strip under the source: tap = preview that perspective
+  $('pstrip').innerHTML = persp.length ? `<div class="pchip ${!peek ? 'on' : ''}" data-peek=""><div class="i"><b>@${esc(S.streamer)}</b><small>Video</small></div></div>`
+    + persp.map((p, i) => `<div class="pchip ${peek?.clip === p.id ? 'on' : ''} ${here(p) ? '' : 'off'}" data-peek="${i}" title="${esc(p.title)}">
+      ${p.thumbnail ? `<img src="${esc(p.thumbnail)}">` : ''}<div class="i"><b>@${esc(p.streamer)}</b><small>${fmtT(p.from)}–${fmtT(p.to)}${state(p)}</small></div></div>`).join('') : '';
+  $('persp').innerHTML = persp.length ? persp.map((p, i) => `<div class="it ${peek?.clip === p.id ? 'cur' : ''}">
+      ${p.thumbnail ? `<img src="${esc(p.thumbnail)}" style="width:56px;height:32px;object-fit:cover;border-radius:5px">` : ''}
+      <div class="grow"><b>@${esc(p.streamer)}</b> <span class="hint">${p.views} Views${state(p)}</span>
+        <div class="hint">deckt ${fmtT(p.from)}–${fmtT(p.to)}</div></div>
+      <button data-peek="${i}" class="${peek?.clip === p.id ? 'on' : ''}" title="Nur ansehen">👁</button>
+      <button data-sw="${i}" ${here(p) ? '' : 'disabled title="Videozeit liegt nicht in diesem Clip"'}>⇄ ab hier</button></div>`).join('')
+    : '<span class="hint">Keine Clips anderer Streams zur gleichen Zeit gefunden.</span>';
+}
+document.addEventListener('click', e => {
+  const b = e.target.closest('[data-peek],[data-sw]');
+  if (!b || !persp) return;
+  if (b.dataset.sw !== undefined) return addSwitch(persp[+b.dataset.sw]);
+  togglePeek(b.dataset.peek === '' ? null : persp[+b.dataset.peek]);
+});
+async function togglePeek(p) {
+  if (!p || peek?.clip === p.id) { peek = null; src.muted = false; drawPersp(); layoutBoxes(); return; }
+  const t = src.currentTime;
+  try {
+    const j = attach(p.id, p.off, clamp(t, p.from, Math.max(p.from, p.to - 6)));
+    drawPersp();
+    const pv = await j;
+    peek = { clip: p.id, off: pv.off, streamer: p.streamer };
+    if (t < p.from || t >= p.to) src.currentTime = p.from + 0.05;  // jump into the part it covers
+    msg(`Vorschau @${p.streamer} – ` + (pv.refined ? 'per Ton synchronisiert' : 'Abgleich nach Stream-Zeit (±2s)'));
+  } catch (e) { msg(e.message, true); }
+  drawPersp(); layoutBoxes();
+}
+async function addSwitch(p) {
+  const t = +src.currentTime.toFixed(2);
+  try {
+    const pv = await attach(p.id, p.off, t);
+    const lay = pv.layout;
+    S.switches = S.switches.filter(s => Math.abs(s.t - t) > 0.05);
+    S.switches.push({ t, clip: p.id, off: pv.off, streamer: p.streamer, cam: lay.cam && [...lay.cam], game: [...lay.game] });
+    S.switches.sort((a, b) => a.t - b.t);
+    peek = null;
+    msg(pv.refined ? 'Wechsel gesetzt · per Ton synchronisiert ✓' : 'Wechsel gesetzt · Zeitabgleich nach Stream-Zeit (±2s)');
+    drawAll(); markDirty();
+  } catch (e) { msg(e.message, true); }
 }
 function drawSwitches() {
   const name = s => s.clip ? '@' + s.streamer : '@' + S.streamer + ' (zurück)';
-  $('switches').innerHTML = S.switches.map((s, i) => `<div class="sw"><span class="tm" data-go="${i}">${fmtT(s.t)}</span>
-    → <b>${esc(name(s))}</b> <button class="x" data-del="${i}" title="Wechsel löschen">✕</button></div>`).join('');
-  $('switches').querySelectorAll('[data-go]').forEach(e => e.onclick = () => { src.currentTime = S.switches[+e.dataset.go].t; });
-  $('switches').querySelectorAll('[data-del]').forEach(e => e.onclick = () => { S.switches.splice(+e.dataset.del, 1); drawSwitches(); markDirty(); });
-}
-async function addSwitch(p, btn) {
-  const t = +src.currentTime.toFixed(2);
-  btn.disabled = true; btn.textContent = 'lädt…';
-  try {
-    const j = await attach(p.id, p.off, t);
-    S.switches = S.switches.filter(s => Math.abs(s.t - t) > 0.05);
-    S.switches.push({ t, clip: p.id, off: j.off, streamer: p.streamer });
-    S.switches.sort((a, b) => a.t - b.t);
-    msg(j.refined ? 'Wechsel gesetzt · per Ton synchronisiert ✓' : 'Wechsel gesetzt · Zeitabgleich nach Stream-Zeit (±2s)');
-    drawSwitches(); markDirty();
-  } catch (e) { msg(e.message, true); }
-  finally { drawPersp(true); }
-}
-async function togglePeek(p, btn) {
-  if (peek?.clip === p.id) { peek = null; src.muted = false; drawPersp(true); return; }
-  btn.disabled = true; btn.textContent = 'lädt…';
-  try {
-    const j = await attach(p.id, p.off, clamp(src.currentTime, p.from, Math.max(p.from, p.to - 6)));  // instant once loaded
-    peek = { clip: p.id, off: j.off, streamer: p.streamer };
-    src.muted = true;  // its sound comes from the other stream while reviewing
-    msg(`Ansicht @${p.streamer} – ` + (j.refined ? 'per Ton synchronisiert' : 'Abgleich nach Stream-Zeit (±2s)'));
-  } catch (e) { msg(e.message, true); }
-  drawPersp(true);
+  $('switches').innerHTML = S.switches.map((s, i) => `<div class="it"><span class="tm" data-go="${i}">${fmtT(s.t)}</span>
+    <span class="grow">→ <b>${esc(name(s))}</b></span><button class="x" data-del="${i}" title="Wechsel löschen">✕</button></div>`).join('')
+    || '<span class="hint">Noch keine Wechsel.</span>';
+  $('switches').querySelectorAll('[data-go]').forEach(e => e.onclick = () => seek(S.switches[+e.dataset.go].t + 0.01));
+  $('switches').querySelectorAll('[data-del]').forEach(e => e.onclick = () => { S.switches.splice(+e.dataset.del, 1); drawAll(); markDirty(); });
 }
 $('backMain').onclick = () => {
   const t = +src.currentTime.toFixed(2);
   S.switches = S.switches.filter(s => Math.abs(s.t - t) > 0.05);
   S.switches.push({ t, clip: null, off: 0 });
   S.switches.sort((a, b) => a.t - b.t);
-  drawSwitches(); markDirty();
+  peek = null; drawAll(); markDirty();
 };
-src.addEventListener('timeupdate', () => drawPersp());
-const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-const switchesBody = () => S.switches.map(({ t, clip, off, streamer }) => ({ t, clip, off, streamer }));
+const switchesBody = () => S.switches.map(({ t, clip, off, streamer, cam, game }) => clip && game ? { t, clip, off, streamer, cam, game } : { t, clip, off, streamer });
 
-// ---------- trim ----------
-function updDur() {
-  const removed = S.cuts.reduce((n, c) => n + Math.max(0, Math.min(c.end, S.trim_end) - Math.max(c.start, S.trim_start)), 0);
-  $('durInfo').textContent = `Länge: ${fmt(S.trim_end - S.trim_start - removed)}s von ${fmt(src.duration || 0)}s`;
+// ================= keyframes =================
+function addKf() {
+  if (S.segments) return msg('Verbundene Clips: jeder Teil hat sein eigenes Layout', true);
+  const t = +src.currentTime.toFixed(2);
+  if (activeSwitch(t)) return msg('Keyframes gelten für den eigenen Stream, hier läuft gerade eine andere Perspektive', true);
+  if (S.keyframes.some(k => Math.abs(k.t - t) < 0.05)) return;
+  S.keyframes.push({ t, cam: S.cam ? r4(frameAt('cam', t)) : null, game: r4(frameAt('game', t)), ease: 0 });
+  S.keyframes.sort((a, b) => a.t - b.t);
+  selKf = S.keyframes.find(k => k.t === t); selCut = null;
+  msg('Keyframe gesetzt – jetzt Facecam / Spiel verschieben'); showTab('kf');
+  drawAll(); markDirty();
 }
-$('ts').oninput = e => { S.trim_start = clamp(+e.target.value, 0, S.trim_end - 1); fitCutsToTrim(); updDur(); markDirty(); };
-$('te').oninput = e => { S.trim_end = clamp(+e.target.value, S.trim_start + 1, src.duration); fitCutsToTrim(); updDur(); markDirty(); };
-$('setS').onclick = () => { $('ts').value = fmt(src.currentTime); $('ts').oninput({ target: $('ts') }); };
-$('setE').onclick = () => { $('te').value = fmt(src.currentTime); $('te').oninput({ target: $('te') }); };
-$('playTrim').onclick = () => { src.currentTime = S.trim_start; src.play(); };
+$('addKf').onclick = $('addKf2').onclick = addKf;
+const EASES = [[0, 'Sprung'], [0.3, '0,3 s'], [0.5, '0,5 s'], [1, '1 s'], [2, '2 s'], [3, '3 s']];
+function drawKfs() {
+  const T = target();
+  $('kfs').innerHTML = S.keyframes.map((k, i) => `<div class="it ${T.o === k ? 'cur' : ''}"><span class="tm" data-kgo="${i}">◆ ${fmtT(k.t)}</span>
+    <span class="grow hint">Übergang <select data-ease="${i}">${EASES.map(([v, l]) => `<option value="${v}" ${+k.ease === v ? 'selected' : ''}>${l}</option>`).join('')}</select></span>
+    <button class="x" data-kdel="${i}" title="Keyframe löschen">✕</button></div>`).join('') || '<span class="hint">Noch keine Keyframes.</span>';
+  $('kfs').querySelectorAll('[data-kgo]').forEach(e => e.onclick = () => seek(S.keyframes[+e.dataset.kgo].t + 0.01));
+  $('kfs').querySelectorAll('[data-ease]').forEach(e => e.onchange = () => { S.keyframes[+e.dataset.ease].ease = +e.value; drawTimeline(); markDirty(); });
+  $('kfs').querySelectorAll('[data-kdel]').forEach(e => e.onclick = () => { S.keyframes.splice(+e.dataset.kdel, 1); selKf = null; drawAll(); markDirty(); });
+  $('kfHint').textContent = S.keyframes.length ? `${S.keyframes.length} Keyframe(s): die Rahmen gelten jeweils ab dem Keyframe vor der aktuellen Zeit.` : '';
+}
+
+// ================= timeline: trim, cuts, perspectives, keyframes, marks =================
+let selCut = null, selKf = null, mark = { a: null, b: null };
+const dur = () => src.duration || S?.trim_end || 1;
+const pct = t => (t / dur() * 100) + '%';
+function drawTimeline() {
+  if (!S || !src.duration) return;
+  const d = dur();
+  let h = '';
+  const step = d > 120 ? 10 : d > 40 ? 5 : 1;
+  for (let t = step; t < d; t += step) h += `<div class="tick" style="left:${pct(t)}"></div>`;
+  // perspective bands
+  S.switches.forEach((s, i) => {
+    if (!s.clip) return;
+    const end = S.switches[i + 1]?.t ?? S.trim_end;
+    h += `<div class="sw" style="left:${pct(s.t)};width:calc(${pct(end - s.t)})">@${esc(s.streamer)}</div>`;
+  });
+  S.cuts.forEach((c, i) => h += `<div class="cut ${selCut === c ? 'sel' : ''}" data-cut="${i}" style="left:${pct(c.start)};width:${pct(c.end - c.start)}"><i class="a" data-ce="a"></i><i class="b" data-ce="b"></i></div>`);
+  if (mark.a != null) h += `<div class="mk" style="left:${pct(mark.a)}"><b>I</b></div>`;
+  if (mark.b != null) h += `<div class="mk" style="left:${pct(mark.b)}"><b>O</b></div>`;
+  if (mark.a != null && mark.b != null) h += `<div class="mark" style="left:${pct(Math.min(mark.a, mark.b))};width:${pct(Math.abs(mark.b - mark.a))}"></div>`;
+  S.keyframes.forEach((k, i) => {
+    if (k.ease) h += `<div style="position:absolute;top:53px;height:2px;background:var(--kf);left:${pct(k.t)};width:${pct(k.ease)}"></div>`;
+    h += `<div class="kf ${selKf === k ? 'sel' : ''}" data-kf="${i}" style="left:${pct(k.t)}" title="Keyframe ${fmtT(k.t)}"></div>`;
+  });
+  h += `<div class="out" style="left:0;width:${pct(S.trim_start)}"></div><div class="out" style="left:${pct(S.trim_end)};right:0"></div>`;
+  h += `<div class="trim" data-trim="s" style="left:${pct(S.trim_start)}">[</div><div class="trim" data-trim="e" style="left:calc(${pct(S.trim_end)} - 14px)">]</div>`;
+  h += `<div class="ph" id="ph"></div>`;
+  $('tl').innerHTML = h;
+  $('delSel').disabled = !selCut && !selKf;
+  drawPlayhead();
+}
+function drawPlayhead() {
+  if (!S) return;
+  const ph = $('ph'); if (ph) ph.style.left = pct(src.currentTime);
+  const removed = S.cuts.reduce((n, c) => n + Math.max(0, Math.min(c.end, S.trim_end) - Math.max(c.start, S.trim_start)), 0);
+  $('tinfo').textContent = `${fmtT(src.currentTime)} · Länge ${fmt(S.trim_end - S.trim_start - removed)}s`;
+  $('play').textContent = src.paused ? '▶' : '⏸';
+}
+let tdrag = null;
+const tlT = e => { const r = $('tl').getBoundingClientRect(); return clamp((e.clientX - r.left) / r.width * dur(), 0, dur()); };
+$('tl').addEventListener('pointerdown', e => {
+  const t = tlT(e), el = e.target;
+  $('tl').setPointerCapture(e.pointerId);
+  if (el.dataset.trim) tdrag = { kind: 'trim', side: el.dataset.trim };
+  else if (el.dataset.ce) { const c = S.cuts[+el.parentElement.dataset.cut]; selCut = c; selKf = null; tdrag = { kind: 'cutEdge', c, side: el.dataset.ce }; }
+  else if (el.dataset.cut) { selCut = S.cuts[+el.dataset.cut]; selKf = null; tdrag = { kind: 'cut', c: selCut, t0: t, a: selCut.start, b: selCut.end }; }
+  else if (el.dataset.kf) { selKf = S.keyframes[+el.dataset.kf]; selCut = null; tdrag = { kind: 'kf', k: selKf, moved: false }; seek(selKf.t + 0.01); }
+  else { selCut = selKf = null; tdrag = { kind: 'seek' }; seek(t); }
+  drawTimeline();
+});
+$('tl').addEventListener('pointermove', e => {
+  if (!tdrag) return;
+  const t = +tlT(e).toFixed(2);
+  if (tdrag.kind === 'seek') return seek(t);
+  if (tdrag.kind === 'trim') {
+    if (tdrag.side === 's') S.trim_start = clamp(t, 0, S.trim_end - 1); else S.trim_end = clamp(t, S.trim_start + 1, dur());
+    fitCutsToTrim(); seek(tdrag.side === 's' ? S.trim_start : S.trim_end);
+  } else if (tdrag.kind === 'cutEdge') {
+    const c = tdrag.c;
+    if (tdrag.side === 'a') c.start = clamp(t, S.trim_start, c.end - .1); else c.end = clamp(t, c.start + .1, S.trim_end);
+    seek(tdrag.side === 'a' ? c.start : c.end);
+  } else if (tdrag.kind === 'cut') {
+    const len = tdrag.b - tdrag.a, a = clamp(tdrag.a + t - tdrag.t0, S.trim_start, S.trim_end - len);
+    tdrag.c.start = +a.toFixed(2); tdrag.c.end = +(a + len).toFixed(2);
+  } else if (tdrag.kind === 'kf') {
+    tdrag.k.t = clamp(t, 0, dur()); tdrag.moved = true; seek(tdrag.k.t + 0.01);
+  }
+  drawTimeline(); markDirty();
+});
+$('tl').addEventListener('pointerup', () => {
+  if (tdrag?.kind === 'cut' || tdrag?.kind === 'cutEdge') { normalizeCuts(); drawTimeline(); }
+  if (tdrag?.kind === 'kf' && tdrag.moved) { S.keyframes.sort((a, b) => a.t - b.t); drawKfs(); }
+  tdrag = null;
+});
+function normalizeCuts() {
+  S.cuts.sort((a, b) => a.start - b.start);
+  S.cuts = S.cuts.reduce((out, c) => { const p = out.at(-1); if (p && c.start <= p.end) { p.end = Math.max(p.end, c.end); if (selCut === c) selCut = p; } else out.push(c); return out; }, []);
+}
+function fitCutsToTrim() {
+  S.cuts = S.cuts.map(c => Object.assign(c, { start: Math.max(c.start, S.trim_start), end: Math.min(c.end, S.trim_end) })).filter(c => c.end - c.start >= .1);
+}
+function cutOut() {
+  let a, b;
+  if (mark.a != null && mark.b != null) { a = Math.min(mark.a, mark.b); b = Math.max(mark.a, mark.b); }
+  else if (mark.a != null && src.currentTime > mark.a) { a = mark.a; b = src.currentTime; }
+  else { a = src.currentTime; b = a + 1; }
+  a = clamp(+a.toFixed(2), S.trim_start, S.trim_end); b = clamp(+b.toFixed(2), S.trim_start, S.trim_end);
+  if (b - a < .1) return msg('Bereich zu kurz – Markierung setzen (I / O)', true);
+  if (a <= S.trim_start + .05 && b >= S.trim_end - .05) return msg('Der ganze Clip kann nicht herausgeschnitten werden', true);
+  const c = { start: a, end: b };
+  S.cuts.push(c); selCut = c; selKf = null; mark = { a: null, b: null };
+  normalizeCuts(); drawTimeline(); markDirty();
+  msg(`Ausgeschnitten ${fmtT(a)}–${fmtT(b)} · Kanten im Zeitstrahl ziehen zum Anpassen`);
+}
+function deleteSel() {
+  if (selCut) S.cuts = S.cuts.filter(c => c !== selCut);
+  if (selKf) S.keyframes = S.keyframes.filter(k => k !== selKf);
+  selCut = selKf = null; drawAll(); markDirty();
+}
+$('cutBtn').onclick = cutOut; $('delSel').onclick = deleteSel;
+$('markIn').onclick = () => { mark.a = +src.currentTime.toFixed(2); drawTimeline(); };
+$('markOut').onclick = () => { mark.b = +src.currentTime.toFixed(2); drawTimeline(); };
+$('setS').onclick = () => { S.trim_start = clamp(+src.currentTime.toFixed(2), 0, S.trim_end - 1); fitCutsToTrim(); drawTimeline(); markDirty(); };
+$('setE').onclick = () => { S.trim_end = clamp(+src.currentTime.toFixed(2), S.trim_start + 1, dur()); fitCutsToTrim(); drawTimeline(); markDirty(); };
+$('playTrim').onclick = () => { seek(S.trim_start); src.play(); };
+$('play').onclick = () => togglePlay();
+$('back1').onclick = () => seek(src.currentTime - 0.1); $('fwd1').onclick = () => seek(src.currentTime + 0.1);
+function togglePlay() {
+  if (src.paused) { if (src.currentTime >= S.trim_end - 0.05 || src.currentTime < S.trim_start) src.currentTime = S.trim_start; src.play(); }
+  else src.pause();
+}
+function seek(t) { src.currentTime = clamp(t, 0, dur()); }
+// playback skips cut-out ranges and loops inside the trimmed part
 src.addEventListener('timeupdate', () => {
   const cut = S.cuts.find(c => src.currentTime >= c.start && src.currentTime < c.end);
   if (!src.paused && cut) src.currentTime = cut.end;
   if (!src.paused && src.currentTime >= S.trim_end) { src.pause(); src.currentTime = S.trim_start; }
 });
+src.addEventListener('seeked', () => { layoutBoxes(); drawKfs(); drawPersp(false); });
 
-// ---------- cut out ranges ----------
-function drawCuts() {
-  normalizeCuts();
-  $('cuts').innerHTML = S.cuts.map((c, i) => `<div class="cut">
-    <label>Ausschneiden</label><input data-start="${i}" type="number" step="0.1" min="0" value="${fmt(c.start)}">
-    <button data-set-start="${i}" title="Start auf aktuelle Videozeit setzen">= aktuelle Zeit</button>
-    <label>bis</label><input data-end="${i}" type="number" step="0.1" min="0" value="${fmt(c.end)}">
-    <button data-set-end="${i}" title="Ende auf aktuelle Videozeit setzen">= aktuelle Zeit</button>
-    <button class="x" data-del-cut="${i}" title="Ausschnitt nicht mehr entfernen">✕</button></div>`).join('');
-  $('cuts').querySelectorAll('[data-start]').forEach(el => el.onchange = () => changeCut(+el.dataset.start, 'start', +el.value));
-  $('cuts').querySelectorAll('[data-end]').forEach(el => el.onchange = () => changeCut(+el.dataset.end, 'end', +el.value));
-  $('cuts').querySelectorAll('[data-set-start]').forEach(el => el.onclick = () => setCut(+el.dataset.setStart, 'start'));
-  $('cuts').querySelectorAll('[data-set-end]').forEach(el => el.onclick = () => setCut(+el.dataset.setEnd, 'end'));
-  $('cuts').querySelectorAll('[data-del-cut]').forEach(el => el.onclick = () => { S.cuts.splice(+el.dataset.delCut, 1); drawCuts(); updDur(); markDirty(); });
-}
-function normalizeCuts() {
-  S.cuts.sort((a, b) => a.start - b.start);
-  S.cuts = S.cuts.reduce((out, c) => {
-    const prev = out.at(-1);
-    if (prev && c.start <= prev.end) prev.end = Math.max(prev.end, c.end);
-    else out.push(c);
-    return out;
-  }, []);
-}
-function fitCutsToTrim() {
-  S.cuts = S.cuts.map(c => ({ start: Math.max(c.start, S.trim_start), end: Math.min(c.end, S.trim_end) }))
-    .filter(c => c.end - c.start >= .1);
-  drawCuts();
-}
-function changeCut(i, side, value) {
-  const c = S.cuts[i], edge = side === 'start' ? c.end - .1 : c.start + .1;
-  c[side] = side === 'start' ? clamp(value, S.trim_start, edge) : clamp(value, edge, S.trim_end);
-  normalizeCuts(); drawCuts(); updDur(); markDirty();
-}
-function setCut(i, side) { changeCut(i, side, +src.currentTime.toFixed(1)); }
-$('addCut').onclick = () => {
-  const start = clamp(+src.currentTime.toFixed(1), S.trim_start, Math.max(S.trim_start, S.trim_end - .1));
-  S.cuts.push({ start, end: Math.min(S.trim_end, +(start + 1).toFixed(1)) });
-  if (S.cuts.at(-1).end - start < .1) S.cuts.at(-1).start = Math.max(S.trim_start, start - 1);
-  normalizeCuts(); drawCuts(); updDur(); markDirty();
-};
-
-// ---------- subtitles ----------
+// ================= subtitles + text =================
 const chunkText = c => c.words.map(w => w.word).join(' ');
 function retime(text, start, end) {  // mirrors subtitles.retime()
   const toks = text.split(/\s+/).filter(Boolean);
@@ -453,134 +723,177 @@ function renderSubs() {
   $('subs').innerHTML = '';
   S.subs.forEach((c, i) => {
     const el = document.createElement('div'); el.className = 'sub'; el.dataset.i = i;
-    const s = c.words[0].start, e = c.words[c.words.length - 1].end;
-    el.innerHTML = `<input type="number" step="0.1" value="${fmt(s)}"><input type="number" step="0.1" value="${fmt(e)}">
+    el.innerHTML = `<input type="number" step="0.1" value="${fmt(c.words[0].start)}"><input type="number" step="0.1" value="${fmt(c.words.at(-1).end)}">
       <input type="text"><button title="Löschen">✕</button>`;
     const [is, ie, it, del] = el.children;
     it.value = chunkText(c);
-    const apply = () => {
+    is.onchange = ie.onchange = it.onchange = () => {
       const ns = +is.value, ne = +ie.value;
       if (ne <= ns) return;
-      const same = it.value.trim() === chunkText(c);
-      // keep word-level timing if only shifting/stretching; else redistribute
-      if (same && c.words.length) {
-        const os = c.words[0].start, oe = c.words[c.words.length - 1].end, k = (ne - ns) / ((oe - os) || 1);
+      if (it.value.trim() === chunkText(c) && c.words.length) {  // only shifted/stretched: keep word timing
+        const os = c.words[0].start, oe = c.words.at(-1).end, k = (ne - ns) / ((oe - os) || 1);
         c.words = c.words.map(w => ({ ...w, start: +(ns + (w.start - os) * k).toFixed(3), end: +(ns + (w.end - os) * k).toFixed(3) }));
       } else c.words = retime(it.value, ns, ne);
       if (!c.words.length) { S.subs.splice(S.subs.indexOf(c), 1); renderSubs(); }
       markDirty();
     };
-    is.onchange = ie.onchange = it.onchange = apply;
-    is.onfocus = ie.onfocus = it.onfocus = () => { src.currentTime = c.words[0].start; };
+    is.onfocus = ie.onfocus = it.onfocus = () => seek(c.words[0].start);
     del.onclick = () => { S.subs.splice(S.subs.indexOf(c), 1); renderSubs(); markDirty(); };
     $('subs').appendChild(el);
   });
 }
 $('addSub').onclick = () => {
   const t = src.currentTime;
-  S.subs.push({ words: retime('NEU', t, Math.min(t + 1.5, src.duration)) });
+  S.subs.push({ words: retime('NEU', t, Math.min(t + 1.5, dur())) });
   renderSubs(); markDirty();
-  const rows = [...document.querySelectorAll('.sub')];
-  const r = rows.find(r => Math.abs(+r.children[0].value - t) < 0.06); if (r) r.children[2].select();
+  const r = [...document.querySelectorAll('.sub')].find(r => Math.abs(+r.children[0].value - t) < 0.06); if (r) r.children[2].select();
 };
 $('caption').oninput = markDirty;
-// title card text -> same title in the TikTok caption
-let lastTitle = null;
+let lastTitle = null;  // title card text -> same title in the TikTok caption
 $('otitle').oninput = () => {
   const nt = $('otitle').value.trim(), cap = $('caption').value;
   if (lastTitle && cap.includes(lastTitle)) $('caption').value = cap.replace(lastTitle, nt);
-  else if (nt) {  // title not found in caption: put it in front of the generated part
-    const i = cap.indexOf(' 🎮 Clip von');
-    $('caption').value = i >= 0 ? nt + cap.slice(i) : nt + ' ' + cap;
-  }
+  else if (nt) { const i = cap.indexOf(' 🎮 Clip von'); $('caption').value = i >= 0 ? nt + cap.slice(i) : nt + ' ' + cap; }
   lastTitle = nt || null;
   markDirty();
 };
-
-// ---------- live preview ----------
-function cover(sx, sy, sw, sh, aspect) {  // crop src rect to target aspect (like ffmpeg increase+crop)
-  if (sw / sh > aspect) { const nw = sh * aspect; return [sx + (sw - nw) / 2, sy, nw, sh]; }
-  const nh = sw / aspect; return [sx, sy + (sh - nh) / 2, sw, nh];
+function showTab(name) {
+  document.querySelectorAll('#tabs button').forEach(b => b.classList.toggle('on', b.dataset.tab === name));
+  document.querySelectorAll('.tab').forEach(t => t.hidden = t.dataset.tab !== name);
 }
+$('tabs').onclick = e => { const b = e.target.closest('[data-tab]'); if (b) showTab(b.dataset.tab); };
+
+// ================= live preview (9:16) =================
+function drawFrame(v, f, dx, dy, dw, dh) {  // frame f of video v into the area; outside the source stays black
+  const vw = v.videoWidth, vh = v.videoHeight;
+  const x0 = Math.max(0, f[0]), y0 = Math.max(0, f[1]), x1 = Math.min(1, f[0] + f[2]), y1 = Math.min(1, f[1] + f[3]);
+  if (x1 <= x0 || y1 <= y0) return;
+  const kx = dw / f[2], ky = dh / f[3];
+  ctx.drawImage(v, x0 * vw, y0 * vh, (x1 - x0) * vw, (y1 - y0) * vh,
+    dx + (x0 - f[0]) * kx, dy + (y0 - f[1]) * ky, (x1 - x0) * kx, (y1 - y0) * ky);
+}
+let PVL = null;  // preview layout of the last frame (for pan/zoom hit testing)
 function draw() {
   requestAnimationFrame(draw);
   if (!R || src.readyState < 2) return;
-  const W = cv.width, H = cv.height, k = W / R.width, camH = CH() * k;
-  // active perspective switch -> draw the other stream (synced) with its facecam layout
-  const sw = activeSwitch(src.currentTime), ov = sw && PV[sw.clip];
+  drawPlayhead();
+  const W = cv.width, H = cv.height, k = W / R.width;
+  const sw = activeSwitch(src.currentTime);
   syncOthers(sw);
-  const v = ov && ov.v.readyState >= 2 ? ov.v : src;
-  const cam = v === src ? S.cam : ov.layout?.cam || null;
-  const vw = v.videoWidth, vh = v.videoHeight;
+  const T = target(), fr = shownFrames(T);
+  const v = T.v.readyState >= 2 ? T.v : src;
+  const camPx = fr.cam ? camH() * k : 0;
   ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, H);
-  const g = v === src ? gameWin() : gameWinFor(vw, vh, ov.layout?.game_x ?? 0.5, !!cam);
-  if (cam) {
-    ctx.drawImage(v, ...cover(cam[0] * vw, cam[1] * vh, cam[2] * vw, cam[3] * vh, camAspect()), 0, 0, W, camH);
-  }
-  const gy = (cam ? camH : 0) + (g.gh - g.oh) / 2 * k;
-  ctx.drawImage(v, g.x, 0, g.w, vh, 0, gy, W, g.oh * k);
+  if (fr.cam) drawFrame(v, fr.cam, 0, 0, W, camPx);
+  drawFrame(v, fr.game, 0, camPx, W, H - camPx);
+  PVL = { T, camPx, k };
 
-  const F = '"Montserrat Black", "Arial Black", sans-serif';
+  const FONT = '"Montserrat Black", "Arial Black", sans-serif';
   const outlined = (txt, x, y, lw) => { ctx.lineWidth = lw; ctx.strokeStyle = '#000'; ctx.lineJoin = 'round'; ctx.strokeText(txt, x, y); ctx.fillText(txt, x, y); };
-  // credit
-  ctx.font = `${40 * k}px ${F}`; ctx.textBaseline = 'top'; ctx.textAlign = 'left'; ctx.fillStyle = '#fff';
-  outlined('@' + (v === src ? curStreamer() : sw.streamer), 30 * k, 30 * k, 8 * k);
+  ctx.font = `${40 * k}px ${FONT}`; ctx.textBaseline = 'top'; ctx.textAlign = 'left'; ctx.fillStyle = '#fff';
+  outlined('@' + T.streamer, 30 * k, 30 * k, 8 * k);
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   const t = src.currentTime, rel = t - S.trim_start;
-
   // subtitles: current chunk, spoken word highlighted + enlarged (matches subtitles.py)
-  document.querySelectorAll('.sub').forEach(el => el.classList.remove('cur'));
-  const ci = S.subs.findIndex(c => t >= c.words[0].start && t <= c.words[c.words.length - 1].end);
-  if (ci >= 0 && t >= S.trim_start && t <= S.trim_end) {
+  document.querySelectorAll('.sub.cur').forEach(el => el.classList.remove('cur'));
+  const ci = S.subs.findIndex(c => t >= c.words[0].start && t <= c.words.at(-1).end);
+  if (ci >= 0 && t >= S.trim_start && t <= S.trim_end && !sw) {
     document.querySelector(`.sub[data-i="${ci}"]`)?.classList.add('cur');
     const ws = S.subs[ci].words, fs = R.font_size * k;
     let ai = 0; ws.forEach((w, i) => { if (t >= w.start) ai = i; });
     const words = ws.map(w => w.word.toUpperCase());
-    const width = i => { ctx.font = `${fs * (i === ai ? 1.12 : 1)}px ${F}`; return ctx.measureText(words[i]).width; };
-    ctx.font = `${fs}px ${F}`; const sp = ctx.measureText(' ').width;
+    const width = i => { ctx.font = `${fs * (i === ai ? 1.12 : 1)}px ${FONT}`; return ctx.measureText(words[i]).width; };
+    ctx.font = `${fs}px ${FONT}`; const sp = ctx.measureText(' ').width;
     const total = words.reduce((a, _, i) => a + width(i), 0) + sp * (words.length - 1);
-    let x = W / 2 - total / 2; const y = subsY() * k;
+    const subsY = Math.min(Math.max(R.subs_y, camH() + 170), R.height - 300) * k;  // mirrors effective_render()
+    let x = W / 2 - total / 2;
     words.forEach((wd, i) => {
       const wdt = width(i);
-      ctx.font = `${fs * (i === ai ? 1.12 : 1)}px ${F}`;
-      ctx.fillStyle = 'rgba(0,0,0,.55)'; ctx.fillText(wd, x + wdt / 2 + 4 * k, y + 4 * k);  // shadow
+      ctx.font = `${fs * (i === ai ? 1.12 : 1)}px ${FONT}`;
+      ctx.fillStyle = 'rgba(0,0,0,.55)'; ctx.fillText(wd, x + wdt / 2 + 4 * k, subsY + 4 * k);
       ctx.fillStyle = i === ai ? R.highlight : '#fff';
-      outlined(wd, x + wdt / 2, y, 16 * k);
+      outlined(wd, x + wdt / 2, subsY, 16 * k);
       x += wdt + sp;
     });
   }
-
   // title card between facecam and game for the first seconds
   const tt = $('otitle').value.replace(/\p{Extended_Pictographic}|️|‍/gu, '').replace(/\s+/g, ' ').trim();
   if (tt && rel >= 0 && rel < R.title_secs) {
-    ctx.font = `${R.title_size * k}px ${F}`;
+    ctx.font = `${R.title_size * k}px ${FONT}`;
     const maxW = W - 2 * 110 * k, lines = [];
     let line = '';
-    tt.split(' ').forEach(wd => { const tst = line ? line + ' ' + wd : wd;
-      if (ctx.measureText(tst).width > maxW && line) { lines.push(line); line = wd; } else line = tst; });
+    tt.split(' ').forEach(wd => { const tst = line ? line + ' ' + wd : wd; if (ctx.measureText(tst).width > maxW && line) { lines.push(line); line = wd; } else line = tst; });
     if (line) lines.push(line);
-    const lh = R.title_size * k * 1.25, pad = 22 * k, y0 = camH - (lines.length - 1) * lh / 2;
-    const a = Math.min(1, rel / 0.12, (R.title_secs - rel) / 0.22);
-    ctx.globalAlpha = Math.max(0, a);
-    lines.forEach((ln, i) => {
-      const w = ctx.measureText(ln).width, y = y0 + i * lh;
-      ctx.fillStyle = '#fff'; ctx.fillRect(W / 2 - w / 2 - pad, y - lh / 2 - pad / 2, w + 2 * pad, lh + pad);
-    });
+    const lh = R.title_size * k * 1.25, pad = 22 * k, y0 = camH() * k - (lines.length - 1) * lh / 2;
+    ctx.globalAlpha = Math.max(0, Math.min(1, rel / 0.12, (R.title_secs - rel) / 0.22));
+    lines.forEach((ln, i) => { const w = ctx.measureText(ln).width, y = y0 + i * lh; ctx.fillStyle = '#fff'; ctx.fillRect(W / 2 - w / 2 - pad, y - lh / 2 - pad / 2, w + 2 * pad, lh + pad); });
     ctx.fillStyle = '#111';
     lines.forEach((ln, i) => ctx.fillText(ln, W / 2, y0 + i * lh));
     ctx.globalAlpha = 1;
   }
-  // split handle
-  if (S.cam && (splitHover || splitDrag)) {
-    ctx.fillStyle = '#39d353'; ctx.fillRect(0, camH - 1.5, W, 3);
-    ctx.beginPath(); ctx.roundRect(W / 2 - 28, camH - 7, 56, 14, 7); ctx.fill();
+  if (fr.cam && (splitHover || pvDrag?.kind === 'split')) {  // seam handle
+    ctx.fillStyle = '#39d353'; ctx.fillRect(0, camPx - 2, W, 4);
+    ctx.beginPath(); ctx.roundRect(W / 2 - 40, camPx - 10, 80, 20, 10); ctx.fill();
   }
 }
 
-// ---------- actions ----------
-const editBody = () => (keepPart(), {
-  cam: S.segments ? S.segments[0].cam : S.cam, game_x: S.segments ? S.segments[0].game_x : S.game_x, zoom: S.zoom, segments: S.segments, trim_start: S.trim_start, trim_end: S.trim_end, cuts: S.cuts, subs: S.subs,
-  caption: $('caption').value, overlay_title: $('otitle').value, cam_h: Math.round(CH()), switches: switchesBody(),
+// preview: drag the seam = facecam height; drag inside an area = move its frame; wheel / pinch = zoom
+let splitHover = false, pvDrag = null;
+const pointers = new Map();
+const cvPos = e => { const r = cv.getBoundingClientRect(); return { x: (e.clientX - r.left) * cv.width / r.width, y: (e.clientY - r.top) * cv.height / r.height }; };
+const regionAt = y => PVL && PVL.camPx && y < PVL.camPx ? 'cam' : 'game';
+function setSplit(px) {
+  S.cam_h = Math.round(clamp(px, 240, 1400) / 2) * 2;
+  $('camH').value = S.cam_h;
+  refitAll(); updSplit(); layoutBoxes(); markDirty();
+}
+$('camH').oninput = e => setSplit(+e.target.value);
+$('resetSplit').onclick = () => setSplit(R.cam_height);
+function updSplit() { if (R) $('splitInfo').textContent = `(Facecam ${Math.round(camH() / R.height * 100)} %)`; }
+cv.addEventListener('pointerdown', e => {
+  if (!PVL) return;
+  cv.setPointerCapture(e.pointerId);
+  const p = cvPos(e); pointers.set(e.pointerId, p);
+  e.preventDefault();
+  if (pointers.size === 2) {  // pinch zoom of the area under the first finger
+    const [a, b] = [...pointers.values()];
+    pvDrag = { kind: 'pinch', region: pvDrag?.region || regionAt(a.y), d0: Math.hypot(a.x - b.x, a.y - b.y), f: [...(PVL.T.o[pvDrag?.region || regionAt(a.y)] || [])] };
+    return;
+  }
+  if (PVL.camPx && Math.abs(p.y - PVL.camPx) < 22) { pvDrag = { kind: 'split' }; return; }
+  const region = regionAt(p.y);
+  if (!PVL.T.o[region]) return;
+  pvDrag = { kind: 'pan', region, p, f: [...PVL.T.o[region]], T: PVL.T, ah: region === 'cam' ? PVL.camPx : cv.height - PVL.camPx };
+});
+cv.addEventListener('pointermove', e => {
+  if (!PVL) return;
+  const p = cvPos(e);
+  if (pointers.has(e.pointerId)) pointers.set(e.pointerId, p);
+  if (!pvDrag) { splitHover = !!PVL.camPx && Math.abs(p.y - PVL.camPx) < 22; cv.style.cursor = splitHover ? 'ns-resize' : 'grab'; return; }
+  if (pvDrag.kind === 'split') return setSplit(p.y / PVL.k);
+  if (pvDrag.kind === 'pan') {
+    const f = pvDrag.f, o = pvDrag.T.o;
+    o[pvDrag.region] = r4([clamp(f[0] - (p.x - pvDrag.p.x) / cv.width * f[2], 0.02 - f[2], 0.98), clamp(f[1] - (p.y - pvDrag.p.y) / pvDrag.ah * f[3], 0.02 - f[3], 0.98), f[2], f[3]]);
+    layoutBoxes(); markDirty();
+  }
+  if (pvDrag.kind === 'pinch' && pointers.size === 2 && pvDrag.f.length) {
+    const [a, b] = [...pointers.values()], d = Math.hypot(a.x - b.x, a.y - b.y);
+    const f = pvDrag.f, nw = clamp(f[2] * pvDrag.d0 / Math.max(d, 1), 0.03, 3), nh = f[3] * nw / f[2];
+    PVL.T.o[pvDrag.region] = r4([f[0] + f[2] / 2 - nw / 2, f[1] + f[3] / 2 - nh / 2, nw, nh]);
+    layoutBoxes(); markDirty();
+  }
+});
+const endPv = e => { pointers.delete(e.pointerId); if (!pointers.size) pvDrag = null; };
+cv.addEventListener('pointerup', endPv); cv.addEventListener('pointercancel', endPv);
+cv.addEventListener('pointerleave', () => { if (!pvDrag) splitHover = false; });
+cv.addEventListener('wheel', e => { if (!PVL) return; e.preventDefault(); zoomFrame(regionAt(cvPos(e).y), e.deltaY > 0 ? 1.05 : 1 / 1.05); }, { passive: false });
+
+// ================= save / export / next =================
+const editBody = () => ({
+  cam: S.segments ? S.segments[0].cam : S.cam, game: S.segments ? S.segments[0].game : S.game, segments: S.segments,
+  keyframes: S.segments ? [] : S.keyframes.map(({ t, cam, game, ease }) => ({ t, cam, game, ease })),
+  trim_start: S.trim_start, trim_end: S.trim_end, cuts: S.cuts, subs: S.subs,
+  caption: $('caption').value, overlay_title: $('otitle').value, cam_h: Math.round(camH()), switches: switchesBody(),
 });
 async function save() {
   clearTimeout(saveTimer);
@@ -589,12 +902,7 @@ async function save() {
   try { await api('/api/clip/' + id, editBody()); msg('Gespeichert ✓'); }
   catch (e) { dirty = true; msg(e.message, true); }
 }
-async function setStatus(st) {
-  await api(`/api/clip/${id}/status`, { status: st });
-  S.status = st; $('title').querySelector('.badge').textContent = st;
-}
-// ---------- workflow: next clip in the list's current order (saved by the list page) ----------
-// handled clip leaves the order; the next one is whatever now sits at its position
+// next clip in the list's current order (saved by the list page); the handled clip leaves the order
 function goNext() {
   dirty = false;
   let order = [];
@@ -603,65 +911,31 @@ function goNext() {
   if (i >= 0) order.splice(i, 1);
   try { localStorage.setItem('clipOrder', JSON.stringify(order)); } catch {}
   const n = order[i >= 0 ? i : 0];
-  location.href = n ? '/edit/' + n : '/';
+  location.href = n ? '/edit/' + n : '/edit';
 }
-async function exportAndNext() {
+$('approve').onclick = async () => {
   const b = $('approve'); b.disabled = true; msg('Wird im Hintergrund gerendert & exportiert…');
-  try {
-    clearTimeout(saveTimer);
-    await api('/api/clip/' + id + '/export', editBody());  // saves + queues the final render
-    goNext();
-  } catch (e) { msg(e.message, true); b.disabled = false; }
-}
-$('approve').onclick = exportAndNext;
-$('reject').onclick = () => { clearTimeout(saveTimer); setStatus('ignored').then(goNext).catch(e => msg(e.message, true)); };
-// ---------- facecam / game split (drag the seam in the preview) ----------
-let splitHover = false, splitDrag = false;
-const cvY = e => (e.clientY - cv.getBoundingClientRect().top) * R.height / cv.clientHeight;  // output px
-function setSplit(px) {
-  S.cam_h = Math.round(clamp(px, 240, 1400) / 2) * 2;
-  fitCam(); updSplit(); layoutBoxes(); markDirty();
-}
-function fitCam() {
-  if (S.cam) {  // keep facecam box at the area's aspect: same center, same width if possible
-    let [x, y, w, h] = S.cam; const cx = x + w / 2, cy = y + h / 2;
-    h = w * vAR() / camAspect();
-    if (h > 1) { h = 1; w = h * camAspect() / vAR(); }
-    if (w > 1) { w = 1; h = w * vAR() / camAspect(); }
-    S.cam = [clamp(cx - w / 2, 0, 1 - w), clamp(cy - h / 2, 0, 1 - h), w, h].map(v => Math.round(v * 10000) / 10000);
-  }
-}
-$('redetect').onclick = async () => {
-  const b = $('redetect'); b.disabled = true; b.textContent = 'Suche…';
-  try {
-    const { cam } = await api(`/api/clip/${id}/redetect`);
-    if (!cam) { msg('Keine Facecam gefunden', true); return; }
-    S.cam = cam; $('hasCam').checked = true;
-    // size the facecam area so the whole detected cam fits without cropping
-    const camPxAspect = cam[2] * src.videoWidth / (cam[3] * src.videoHeight);
-    S.cam_h = Math.round(clamp(R.width / camPxAspect, 240, 1400) / 2) * 2;
-    fitCam(); updSplit(); layoutBoxes(); markDirty();
-    msg('Facecam erkannt ✓ – gespeichert für @' + S.streamer);
-  } catch (e) { msg(e.message, true); }
-  finally { b.disabled = false; b.textContent = 'Facecam neu erkennen'; }
+  try { clearTimeout(saveTimer); await api('/api/clip/' + id + '/export', editBody()); goNext(); }
+  catch (e) { msg(e.message, true); b.disabled = false; }
 };
-function updSplit() { $('splitInfo').textContent = `Facecam ${Math.round(CH() / R.height * 100)}%`; }
-cv.addEventListener('pointermove', e => {
-  if (!R) return;
-  if (splitDrag) return setSplit(cvY(e));
-  splitHover = !!S.cam && Math.abs(cvY(e) - CH()) < 40;
-  cv.style.cursor = splitHover ? 'ns-resize' : '';
-});
-cv.addEventListener('pointerdown', e => {
-  if (R && S.cam && Math.abs(cvY(e) - CH()) < 40) { splitDrag = true; cv.setPointerCapture(e.pointerId); e.preventDefault(); }
-});
-cv.addEventListener('pointerup', () => splitDrag = false);
-cv.addEventListener('pointerleave', () => { if (!splitDrag) splitHover = false; });
-$('resetSplit').onclick = () => setSplit(R.cam_height);
+$('reject').onclick = () => { clearTimeout(saveTimer); api(`/api/clip/${id}/status`, { status: 'ignored' }).then(goNext).catch(e => msg(e.message, true)); };
 
+document.addEventListener('keydown', e => {
+  if (e.target.matches('input,textarea,select')) return;
+  const k = e.key.toLowerCase();
+  if (e.key === ' ') { e.preventDefault(); togglePlay(); }
+  else if (e.key === 'ArrowLeft') { e.preventDefault(); seek(src.currentTime - (e.shiftKey ? 1 : 0.1)); }
+  else if (e.key === 'ArrowRight') { e.preventDefault(); seek(src.currentTime + (e.shiftKey ? 1 : 0.1)); }
+  else if (k === 'i') $('markIn').click();
+  else if (k === 'o') $('markOut').click();
+  else if (k === 'x') cutOut();
+  else if (k === 'k') addKf();
+  else if (e.key === 'Delete' || e.key === 'Backspace') { if (selCut || selKf) { e.preventDefault(); deleteSel(); } }
+});
+src.addEventListener('play', drawPlayhead); src.addEventListener('pause', drawPlayhead);
+setInterval(() => { if (S && src.duration) { layoutBoxes(); drawPersp(false); } }, 250);  // target changes while playing
 requestAnimationFrame(draw);
-// leaving within the autosave delay: send the last change anyway
-window.addEventListener('pagehide', () => {
+window.addEventListener('pagehide', () => {  // leaving within the autosave delay: send the last change anyway
   if (dirty) fetch('/api/clip/' + id, { method: 'POST', body: JSON.stringify(editBody()), keepalive: true });
 });
 load();

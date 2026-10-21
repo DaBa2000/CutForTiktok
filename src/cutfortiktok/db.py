@@ -40,8 +40,11 @@ MIGRATE = {"thumbnail": "TEXT", "game_id": "TEXT", "overlay_title": "TEXT", "cam
            "cuts": "TEXT",  # JSON [{"start": source time, "end": source time}] removed from the final timeline
            "tier": "TEXT",  # Scheduler rating of an exported clip: insane | very_good | good | filler
            "chain": "TEXT",  # joined clip: JSON [clip ids] its source video is made of, see clips.join
-           "segments": "TEXT",
-           "regrow": "TEXT"}  # edited clip that grew (merge.grow): {delta, old_raw, old_len} until finish_grow ran  # joined clip: JSON [{start, end, clip, streamer, cam, game_x}] layout per part
+           "segments": "TEXT",  # joined clip: JSON [{start, end, clip, streamer, cam, game}] layout per part
+           "regrow": "TEXT",  # edited clip that grew (merge.grow): {delta, old_raw, old_len} until finish_grow ran
+           "game": "TEXT",  # JSON [x,y,w,h] game frame (layout.py); NULL = from game_x + zoom (older clips)
+           "keyframes": "TEXT",  # JSON [{"t", "cam", "game", "ease"}] layout changes during the clip (layout.py)
+           "keep_media": "INTEGER"}  # 1 = download stays (perspective watched / used), until the clip ages out
 
 
 _migrated = False

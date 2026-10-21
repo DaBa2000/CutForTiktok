@@ -53,10 +53,22 @@ struct API {
         let _: [String: AnyCodable] = try await post(path, body)
     }
 
-    /// streamer filter of a page ("foryou" | "selector"), shared with the website
-    func saveHidden(_ page: String, _ hidden: Set<String>) async {
-        struct Body: Encodable { let page: String; let hidden: [String] }
-        try? await post("/api/filters", Body(page: page, hidden: hidden.sorted()))
+    /// The view being looked at and its next clips: the Mac downloads them in background (prefetch.py).
+    /// view: foryou | profile | discovery. Sent again only when the list changed or after 30 s.
+    func focus(_ view: String, _ ids: [String]) async {
+        struct Body: Encodable { let view: String; let ids: [String] }
+        let ids = Array(ids.prefix(12))
+        let key = view + ":" + ids.joined(separator: ",")
+        guard await FocusMemo.shared.shouldSend(key) else { return }
+        try? await post("/api/focus", Body(view: view, ids: ids))
+    }
+
+    /// configurations: op save {id?, name, streamers (nil = all), pins} | activate {id} | delete {id}
+    func configs() async throws -> ConfigsResponse { try await get("/api/configs") }
+
+    @discardableResult
+    func activateConfig(_ id: String) async throws -> ConfigsResponse {
+        try await post("/api/configs", ["op": "activate", "id": id])
     }
 
     /// ignored / kept / new / uploaded: the server applies it everywhere (lists, scheduler, files)
@@ -90,6 +102,17 @@ struct API {
 
     @MainActor private func setOffline(_ v: Bool) {
         if connection?.offline != v { connection?.offline = v }
+    }
+}
+
+actor FocusMemo {
+    static let shared = FocusMemo()
+    private var key = ""
+    private var at = Date.distantPast
+    func shouldSend(_ k: String) -> Bool {
+        if k == key, Date().timeIntervalSince(at) < 30 { return false }
+        key = k; at = Date()
+        return true
     }
 }
 

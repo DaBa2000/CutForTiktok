@@ -9,7 +9,7 @@ import traceback
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from . import db, facecam, merge, twitch
+from . import db, facecam, layout, merge, twitch
 from .config import ROOT, load_config, paths
 from .download import download_clip
 from .media import FFMPEG, probe, run
@@ -175,7 +175,7 @@ def release_files(clip_id: str) -> None:
     for f in (row["raw_path"], row["out_path"], p.work / f"{clip_id}.words.json", p.work / f"{clip_id}.ass"):
         if f:
             Path(f).unlink(missing_ok=True)
-    db.update_clip(clip_id, raw_path=None, out_path=None, subs=None, cam=None, cam_h=None,
+    db.update_clip(clip_id, raw_path=None, out_path=None, subs=None, cam=None, cam_h=None, game=None,
                    game_x=None, trim_start=None, trim_end=None)
 
 
@@ -198,22 +198,17 @@ def fetch_raw(row) -> Path:
         return raw
 
 
-# perspective clips opened in the editor / For You stay downloaded (not evicted) for a while
-PIN_HOURS = 6
-_pinned: dict[str, float] = {}
-
-
-def pin(ids) -> None:
-    until = time.time() + PIN_HOURS * 3600
-    for i in ids:
-        _pinned[i] = until
+def keep(ids) -> None:
+    """These downloads stay (perspective watched in For You / the editor, parts of a joined clip) until the clip is
+    older than `clips.max_age_days` (purge_old)."""
+    with db.conn() as c:
+        c.executemany("UPDATE clips SET keep_media=1 WHERE id=?", [(i,) for i in ids])
 
 
 def protected() -> set[str]:
-    """Clips whose downloads must stay: pinned + perspectives used in switches of clips being edited."""
-    now = time.time()
-    keep = {i for i, t in _pinned.items() if t > now}
+    """Clips whose downloads must stay: kept ones + perspectives used in switches of clips being edited."""
     with db.conn() as c:
+        keep = {r[0] for r in c.execute("SELECT id FROM clips WHERE keep_media=1")}
         for r in c.execute("SELECT switches FROM clips WHERE switches IS NOT NULL AND switches != '[]' "
                            "AND status IN ('new','kept','pending_review')"):
             keep |= {s["clip"] for s in json.loads(r[0]) if s.get("clip")}
@@ -230,7 +225,7 @@ def drop_media(clip_id: str) -> None:
 
 
 def cleanup_media() -> int:
-    """Drop videos of clips that left the selector (exported, posted, ignored, hidden by a merge)."""
+    """Drop videos of clips that left Discovery (exported, posted, ignored, hidden by a merge)."""
     with db.conn() as c:
         ids = [r[0] for r in c.execute(
             "SELECT id FROM clips WHERE (raw_path IS NOT NULL OR out_path IS NOT NULL) "
@@ -240,19 +235,53 @@ def cleanup_media() -> int:
     return len(ids)
 
 
+def purge_old() -> int:
+    """Clips older than `clips.max_age_days` (default 7) leave all lists (see clips.py) and their downloads and
+    work files are deleted. Clips in Edit and exported ones keep theirs."""
+    days = load_config()["clips"].get("max_age_days", 7)
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    with db.conn() as c:
+        ids = [r[0] for r in c.execute(
+            "SELECT id FROM clips WHERE COALESCE(happened_at, created_at) < ? "
+            "AND status NOT IN ('kept','pending_review','approved') "
+            "AND (raw_path IS NOT NULL OR out_path IS NOT NULL OR keep_media IS NOT NULL)", (cutoff,))]
+    work = paths().work
+    for i in ids:
+        drop_media(i)
+        for f in work.glob(f"{i}.*"):
+            f.unlink(missing_ok=True)
+        db.update_clip(i, keep_media=None)
+    return len(ids)
+
+
+def start_janitor() -> None:
+    """Hourly: delete old clips' files (purge_old) and videos of finished clips (cleanup_media)."""
+    def loop():
+        while True:
+            try:
+                n, m = purge_old(), cleanup_media()
+                if n or m:
+                    print(f"[cleanup] {n} alte Clips, {m} fertige Clips: Videos gelöscht")
+            except Exception:
+                traceback.print_exc()
+            time.sleep(3600)
+    threading.Thread(target=loop, daemon=True, name="janitor").start()
+
+
 def prepare(clip_id: str) -> None:
     """Download, detect facecam, transcribe; store editable state.
     Status is left unchanged (also used for background prefetching)."""
     row = db.get_clip(clip_id)
     raw = fetch_raw(row)
-    layout = facecam.get_layout(row["streamer"], raw)
+    lay = facecam.get_layout(row["streamer"], raw)
     words = transcribe(raw, paths().work)
-    _, _, dur = probe(raw)
+    sw, sh, dur = probe(raw)
+    r = effective_render(lay.get("cam_h"))
+    fr = layout.frames(lay, sw, sh, r, r["cam_height"])
     tags = (allowlist().get(row["streamer"]) or {}).get("hashtags")
     row = db.get_clip(clip_id)  # title may have been changed in the Edit list while this ran
     db.update_clip(
-        clip_id, cam=json.dumps(layout.get("cam")), cam_h=layout.get("cam_h"),
-        game_x=layout.get("game_x", load_config()["render"]["game_center_x"]), zoom=layout.get("zoom", 0.0),
+        clip_id, cam=json.dumps(fr["cam"]), cam_h=r["cam_height"], game=json.dumps(fr["game"]), keyframes="[]",
         trim_start=0.0, trim_end=round(dur, 2),
         subs=json.dumps([{"words": ch} for ch in chunk_words(words)], ensure_ascii=False),
         overlay_title=row["overlay_title"] or row["title"],
@@ -289,6 +318,7 @@ def finish_grow(clip_id: str) -> None:
         trim_start=0.0 if sh(row["trim_start"] or 0) <= a + 0.5 else sh(row["trim_start"]),
         trim_end=round(dur, 2) if sh(row["trim_end"] or dur) >= b - 0.5 else min(round(dur, 2), sh(row["trim_end"])),
         cuts=json.dumps([{"start": sh(c["start"]), "end": sh(c["end"])} for c in json.loads(row["cuts"] or "[]")]),
+        keyframes=json.dumps([{**k, "t": sh(k["t"])} for k in json.loads(row["keyframes"] or "[]")]),
         switches=json.dumps([{**x, "t": sh(x["t"]), "off": x["off"] - d} for x in json.loads(row["switches"] or "[]")]))
     print(f"[merge] {clip_id}: Video neu gebaut, alter Teil ab {delta:.2f}s")
 
@@ -346,29 +376,42 @@ def _without_cuts(segs: list[tuple[float, float, dict | None]], cuts: list[dict]
     return [(a, b, s) for a, b, s in out if b - a > .05]
 
 
-def _render_switched(row, segs, out: Path, r: dict, ts: float, te: float, preset: str, title: str | None) -> None:
+def _frames(d, src: Path, r: dict) -> dict:
+    sw, sh, _ = probe(src)
+    return layout.frames(d, sw, sh, r, r["cam_height"])
+
+
+def _main_layout(row, r: dict) -> tuple[dict, list[dict]]:
+    """Frames + keyframes of the clip itself (layout.py)."""
+    sw, sh, _ = probe(Path(row["raw_path"]))
+    fr = layout.frames(row, sw, sh, r, r["cam_height"])
+    kfs = layout.keyframes(json.loads(row["keyframes"] or "[]"), sw, sh, r, r["cam_height"], bool(fr["cam"]))
+    return fr, kfs
+
+
+def _render_switched(row, segs, out: Path, r: dict, preset: str, title: str | None) -> None:
     p = paths()
     parts, chunks, credits = [], [], []
     main_chunks = [c["words"] for c in json.loads(row["subs"] or "[]")]
+    raw = Path(row["raw_path"])
+    main_fr, kfs = _main_layout(row, r)
     out_t = 0.0
     for i, (a, b, s) in enumerate(segs):
         part = p.work / f"{row['id']}.seg{i}.mp4"
         if s and "part" in s:  # joined clip: this part keeps its own clip's facecam layout + credit
-            render(Path(row["raw_path"]), part, s["part"]["cam"], None, r=r, game_x=s["part"]["game_x"], zoom=row["zoom"],
-                   trim=(a, b), preset="ultrafast")
+            render(raw, part, _frames({"zoom": row["zoom"], **s["part"]}, raw, r), None, r=r, trim=(a, b), preset="ultrafast")
             source_chunks = [ch for ch in main_chunks if a <= ch[0]["start"] < b]
             name = s["part"]["streamer"]
         elif s is None:
-            render(Path(row["raw_path"]), part, json.loads(row["cam"] or "null"), None, r=r,
-                   game_x=row["game_x"], zoom=row["zoom"], trim=(a, b), preset="ultrafast")
+            render(raw, part, main_fr, None, r=r, kfs=kfs, trim=(a, b), preset="ultrafast")
             source_chunks = [ch for ch in main_chunks if a <= ch[0]["start"] < b]
             name = row["streamer"]
         else:
             o = db.get_clip(s["clip"])
             oraw = fetch_raw(o)
-            lay = facecam.get_layout(o["streamer"], oraw)
-            render(oraw, part, lay.get("cam"), None, r=r, game_x=lay.get("game_x"), zoom=row["zoom"],
-                   trim=(a + s["off"], b + s["off"]), preset="ultrafast")
+            # layout chosen for this perspective in the editor, else that streamer's default
+            lay = s if s.get("game") else facecam.get_layout(o["streamer"], oraw)
+            render(oraw, part, _frames(lay, oraw, r), None, r=r, trim=(a + s["off"], b + s["off"]), preset="ultrafast")
             words = [{**w, "start": w["start"] - s["off"], "end": w["end"] - s["off"]}
                      for w in transcribe(oraw, p.work)]
             source_chunks = chunk_words([w for w in words if a <= w["start"] < b])
@@ -417,7 +460,7 @@ def render_clip(clip_id: str, preset: str = "medium", title: str | None = None) 
     if not segs:
         raise ValueError("Der gesamte Ausschnitt wurde entfernt")
     if cuts or any(s for _, _, s in segs):  # perspective switches or cut-out ranges
-        _render_switched(row, segs, out, r, ts, te, preset, title)
+        _render_switched(row, segs, out, r, preset, title)
         db.update_clip(clip_id, out_path=str(out))
         return out
     ass = p.work / f"{clip_id}.ass"
@@ -426,8 +469,8 @@ def render_clip(clip_id: str, preset: str = "medium", title: str | None = None) 
         offset=ts, duration=te - ts, render=r,
         title=title, credit=f"@{row['streamer']}",
     )
-    render(raw, out, json.loads(row["cam"] or "null"), ass, r=r,
-           game_x=row["game_x"], zoom=row["zoom"], trim=(ts, te), preset=preset)
+    fr, kfs = _main_layout(row, r)
+    render(raw, out, fr, ass, r=r, kfs=kfs, trim=(ts, te), preset=preset)
     db.update_clip(clip_id, out_path=str(out))
     return out
 
@@ -494,5 +537,5 @@ def build_joined(clip_id: str, ids: list[str]) -> Path:
     run([*cmd, "-filter_complex", ";".join(fc), "-map", "[v]", "-map", "[a]", "-c:v", "libx264", "-crf", "17",
          "-preset", "fast", "-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart", str(tmp)])
     tmp.replace(out)
-    pin(ids)  # the single clips' downloads stay a while (rebuild after export would need them)
+    keep(ids)  # the single clips' downloads stay (rebuild after export would need them)
     return out

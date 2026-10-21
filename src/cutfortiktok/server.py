@@ -3,27 +3,33 @@
 import json
 import re
 import socket
-import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
-from . import clips, db, facecam, mobile, perspectives, pipeline, prefetch, store
+from . import clips, db, facecam, layout, mobile, perspectives, pipeline, prefetch, store
+from .media import probe
 from .config import ROOT, load_config
 
 WEB = Path(__file__).parent / "web"
 FONTS = ROOT / "assets" / "fonts"
-PAGES = {"/": "index.html", "/foryou": "foryou.html", "/edit": "editlist.html", "/scheduler": "scheduler.html"}
+PAGES = {"/": "index.html", "/foryou": "foryou.html", "/edit": "editlist.html", "/scheduler": "scheduler.html",
+         "/settings": "settings.html"}
 STATIC = {"common.css": "text/css; charset=utf-8", "common.js": "text/javascript; charset=utf-8"}
 RENDER_KEYS = ("width", "height", "cam_height", "subs_y", "font_size", "highlight", "title_secs", "title_size")
 
 
 def _clip_json(row) -> dict:
     d = dict(row)
-    for k in ("cam", "subs"):
+    for k in ("cam", "subs", "game", "keyframes"):
         d[k] = json.loads(d[k]) if d.get(k) else None
     r = load_config()["render"]
     return {**d, "render": {k: r[k] for k in RENDER_KEYS}}
+
+
+def _config_info() -> dict:
+    a = store.active()
+    return {"id": a["id"], "name": a["name"]}
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -112,19 +118,21 @@ class Handler(BaseHTTPRequestHandler):
 
         if path == "/api/info":  # app: connection check
             return self._json({"ok": True, "app": "cutfortiktok", "host": socket.gethostname()})
-        if path == "/api/foryou":
-            age = q.get("age", [""])[0]  # only clips of the last `age` minutes
-            return self._json({"clips": clips.foryou_list(int(age) if age.isdigit() else None),
-                               "streamers": sorted(pipeline.allowlist()), "hidden": store.hidden("foryou"),
-                               "next_sync": pipeline.next_sync_at})
+        if path == "/api/foryou":  # ?age=minutes &streamer=login (profile) &sort=rank|new|top &skip=n watched
+            age, skip = q.get("age", [""])[0], q.get("skip", ["0"])[0]
+            return self._json({"clips": clips.foryou_list(int(age) if age.isdigit() else None, q.get("streamer", [None])[0],
+                                                          q.get("sort", ["rank"])[0], int(skip) if skip.isdigit() else 0),
+                               "config": _config_info(), "next_sync": pipeline.next_sync_at})
         if path == "/api/editlist":
             return self._json({"clips": clips.edit_list(), "rendering": sorted(clips.exporting),
                                "prefetch": prefetch.status()})
-        if path == "/api/clips":  # Post Selector
-            return self._json({"clips": clips.selector_list(), "streamers": sorted(pipeline.allowlist()),
+        if path == "/api/clips":  # Discovery (+ streamer profiles)
+            return self._json({"clips": clips.discovery_list(), "streamers": sorted(store.active_streamers()),
                                "rendering": sorted(clips.exporting), "next_sync": pipeline.next_sync_at,
-                               "pins": store.pins(), "hidden": store.hidden("selector"),
+                               "pins": store.pins(), "config": _config_info(),
                                "used": clips.used_per_channel(), "prefetch": prefetch.status()})
+        if path == "/api/configs":  # configurations (settings), the active one applies everywhere
+            return self._json(store.configs())
         if path == "/api/queue":  # Scheduler + extension
             port = self.server.server_port
             return self._json([{**c, "video_url": f"http://localhost:{port}/export/{c['id']}"} for c in clips.export_queue()])
@@ -157,14 +165,30 @@ class Handler(BaseHTTPRequestHandler):
         try:
             if path == "/api/sync":
                 return self._json({"new": pipeline.sync(full=bool(body.get("full")))})
-            if path == "/api/pins":  # pinned channels get prepared in background
+            if path == "/api/pins":  # pinned channels of the active configuration (Discovery)
                 store.save_pins(body.get("pins") or [])
-                prefetch.wake()
                 return self._json({"ok": True})
-            if path == "/api/filters":  # streamer filter of a page, same on website and app
-                store.save_hidden(body.get("page", ""), body.get("hidden") or [])
+            if path == "/api/focus":  # the view being looked at + its next clips -> downloaded in background
+                prefetch.set_focus(str(body.get("view")), [str(i) for i in body.get("ids") or []])
                 return self._json({"ok": True})
-            if path == "/api/filters/exclude":  # For You: hide a streamer in For You + Post Selector
+            if path == "/api/configs":  # op: save {id?, name, streamers (null = all), pins?} | activate {id} | delete {id}
+                op = body.get("op")
+                if op == "save":
+                    st = body.get("streamers")
+                    cid = store.save_config(body.get("id"), str(body.get("name") or ""),
+                                            None if st is None else [str(x) for x in st],
+                                            None if body.get("pins") is None else [str(x) for x in body["pins"]])
+                    if body.get("activate"):
+                        store.activate_config(cid)
+                    return self._json({"id": cid, **store.configs()})
+                if op == "activate":
+                    store.activate_config(str(body.get("id")))
+                elif op == "delete":
+                    store.delete_config(str(body.get("id")))
+                else:
+                    return self._json({"error": "unknown op"}, 400)
+                return self._json(store.configs())
+            if path == "/api/filters/exclude":  # For You: remove a streamer from the active configuration
                 store.exclude_channel(str(body["streamer"]))
                 return self._json({"ok": True})
             if path == "/api/settings":
@@ -178,7 +202,7 @@ class Handler(BaseHTTPRequestHandler):
                 for i in ids:
                     clips.unexport(i)
                 if body.get("join") and len(ids) > 1:  # stream order, opened in the editor afterwards
-                    ids.sort(key=lambda i: clips._when(db.get_clip(i)))
+                    ids.sort(key=lambda i: clips.when(db.get_clip(i)))
                     return self._json({"id": clips.join(ids)})
                 return self._json({"ok": True})
             if path == "/api/schedules":  # extension writes its whole schedule list
@@ -213,16 +237,19 @@ class Handler(BaseHTTPRequestHandler):
             elif action == "redetect":
                 with pipeline.user_work():
                     return self._json(facecam.detect(Path(row["raw_path"])))
-            elif action == "fetch":  # download only (watch another perspective), not queued behind background jobs
+            elif action == "fetch":  # download only (perspective clicked), not queued behind background jobs; kept
                 pipeline.fetch_raw(row)
-                pipeline.pin([cid])
+                pipeline.keep([cid])
             elif action == "align":  # editor: sync offset + facecam layout of a perspective clip
                 other = db.get_clip(body["other"])
                 main_raw, oraw = pipeline.fetch_raw(row), pipeline.fetch_raw(other)
-                pipeline.pin([cid, other["id"]])
+                pipeline.keep([other["id"]])
                 off, refined = perspectives.refine(main_raw, oraw, float(body["off"]), float(body["at"]))
-                return self._json({"off": round(off, 3), "refined": refined,
-                                   "layout": facecam.get_layout(other["streamer"], oraw)})
+                lay = facecam.get_layout(other["streamer"], oraw)
+                sw, sh, _ = probe(oraw)
+                r = pipeline.effective_render(body.get("cam_h") or row["cam_h"])
+                return self._json({"off": round(off, 3), "refined": refined, "size": [sw, sh],
+                                   "layout": layout.frames(lay, sw, sh, r, r["cam_height"])})
             else:
                 return self._json({"error": "unknown action"}, 404)
             return self._json({"ok": True})
@@ -237,8 +264,7 @@ def serve(port: int, listen: bool = True) -> None:
         pipeline.start_listener()
     prefetch.start()
     clips.start_export_worker()
-    threading.Thread(target=lambda: print(f"[cleanup] videos of {pipeline.cleanup_media()} finished clips deleted"),
-                     daemon=True).start()
+    pipeline.start_janitor()
     lan = load_config()["review"].get("lan", True)  # iPhone app reaches the server over WiFi
     print(f"App: http://localhost:{port}  (Ctrl+C to stop)")
     if lan:

@@ -1,0 +1,118 @@
+<!doctype html><html lang="de"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Einstellungen</title>
+<link rel="stylesheet" href="/static/common.css">
+<style>
+main{max-width:1000px;margin:0 auto;padding:20px;display:grid;grid-template-columns:280px minmax(0,1fr);gap:20px;align-items:start}
+h2{font-size:15px;margin:0 0 12px}
+.box{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px}
+.cfgs{display:flex;flex-direction:column;gap:6px}
+.cf{display:flex;align-items:center;gap:8px;padding:10px;border-radius:10px;border:1px solid var(--line);background:var(--panel2);cursor:pointer}
+.cf.sel{border-color:var(--acc2)}
+.cf .n{flex:1;min-width:0;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cf small{color:var(--mute)}
+.badge{font-size:11px;font-weight:800;padding:2px 7px;border-radius:999px;background:var(--ok);color:#fff}
+input[type=text],input[type=search]{font:inherit;background:var(--panel2);border:1px solid var(--line);color:var(--fg);border-radius:9px;padding:8px 10px;width:100%}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:10px 0}
+.mode{display:flex;gap:16px;margin:10px 0}.mode label{display:flex;gap:6px;align-items:center;cursor:pointer;font-weight:600}
+.list{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:4px;max-height:55vh;overflow:auto;padding:4px;border:1px solid var(--line);border-radius:10px;background:var(--bg)}
+.list label{display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:7px;cursor:pointer;user-select:none}
+.list label:hover{background:var(--panel2)}
+.list label.on{color:var(--fg)}.list label:not(.on){color:var(--mute)}
+.list .pn{margin-left:auto;background:none;border:0;cursor:pointer;opacity:.25;filter:grayscale(1)}.list .pn.on{opacity:1;filter:none}
+.hint{color:var(--mute);font-size:12px}
+.err{color:#f85149;font-size:13px}.ok{color:var(--ok);font-size:13px}
+.danger{color:#f85149!important}
+@media (max-width:760px){main{grid-template-columns:1fr}}
+</style>
+
+<div class="top"><div class="nav"></div></div>
+<main>
+  <section class="box">
+    <h2>Konfigurationen</h2>
+    <div class="cfgs" id="cfgs"></div>
+    <div class="row"><button class="btn" id="new">+ Neue Konfiguration</button></div>
+    <p class="hint">Die aktive Konfiguration gilt überall: For You, Discovery, Streamer-Profile und die Downloads im Hintergrund
+      – auf der Website und in der iPhone-App.</p>
+  </section>
+  <section class="box" id="ed"></section>
+</main>
+
+<script src="/static/common.js"></script>
+<script>
+let C = null, edit = null;  // configurations from the server, configuration being edited (copy)
+
+async function reload(selectId) {
+  C = await (await fetch('/api/configs')).json();
+  const c = C.configs.find(x => x.id === (selectId || edit?.id)) || C.configs.find(x => x.id === C.active);
+  edit = c ? { ...c, streamers: c.streamers ? [...c.streamers] : null, pins: [...(c.pins || [])] } : null;
+  draw();
+}
+
+function draw() {
+  $('cfgs').innerHTML = C.configs.map(c => `<div class="cf ${edit?.id === c.id ? 'sel' : ''}" data-id="${esc(c.id)}">
+      <div class="n">${esc(c.name)}</div><small>${c.streamers ? c.streamers.length : 'alle'}</small>
+      ${c.id === C.active ? '<span class="badge">aktiv</span>' : ''}</div>`).join('');
+  drawEdit();
+}
+$('cfgs').onclick = e => { const el = e.target.closest('[data-id]'); if (el) reload(el.dataset.id); };
+$('new').onclick = () => { edit = { id: null, name: '', streamers: [], pins: [] }; draw(); $('name').focus(); };
+
+let filter = '';
+function drawEdit() {
+  if (!edit) { $('ed').innerHTML = ''; return; }
+  const all = C.streamers, on = s => !edit.streamers || edit.streamers.includes(s);
+  const list = all.filter(s => s.includes(filter.toLowerCase()));
+  $('ed').innerHTML = `<h2>${edit.id ? 'Konfiguration bearbeiten' : 'Neue Konfiguration'}</h2>
+    <input type="text" id="name" placeholder="Name, z. B. „Craft Attack Top 10“" value="${esc(edit.name)}">
+    <div class="mode"><label><input type="radio" name="m" value="all" ${edit.streamers ? '' : 'checked'}> Alle Streamer <span class="hint">(auch neue aus accounts.txt)</span></label>
+      <label><input type="radio" name="m" value="pick" ${edit.streamers ? 'checked' : ''}> Auswahl</label></div>
+    <div class="row"><input type="search" id="q" placeholder="Streamer suchen…" value="${esc(filter)}" style="flex:1">
+      ${edit.streamers ? '<button class="btn" id="allOn">Alle</button><button class="btn" id="allOff">Keine</button>' : ''}</div>
+    <div class="hint" style="margin-bottom:6px">${edit.streamers ? `${edit.streamers.length} von ${all.length} ausgewählt` : `alle ${all.length}`} · 📌 = angeheftet
+      (in Discovery oben, ihre Clips werden im Hintergrund geladen)</div>
+    <div class="list" id="list">${list.map(s => `<label class="${on(s) ? 'on' : ''}"><input type="checkbox" value="${esc(s)}" ${on(s) ? 'checked' : ''} ${edit.streamers ? '' : 'disabled'}>@${esc(s)}
+      <button class="pn ${edit.pins.includes(s) ? 'on' : ''}" data-pin="${esc(s)}" title="Anheften">📌</button></label>`).join('') || '<div class="hint" style="padding:8px">Kein Streamer gefunden.</div>'}</div>
+    <div class="row"><button class="btn pri" id="save">${edit.id ? 'Speichern' : 'Anlegen'}</button>
+      ${edit.id && edit.id !== C.active ? '<button class="btn" id="act">Speichern & aktivieren</button>' : ''}
+      ${!edit.id ? '<button class="btn" id="act">Anlegen & aktivieren</button>' : ''}
+      ${edit.id && C.configs.length > 1 ? '<button class="btn danger" id="del" style="margin-left:auto">Löschen</button>' : ''}
+      <span id="msg"></span></div>`;
+  $('name').oninput = e => edit.name = e.target.value;
+  $('q').oninput = e => { filter = e.target.value; drawEdit(); const q = $('q'); q.focus(); q.setSelectionRange(q.value.length, q.value.length); };
+  document.querySelectorAll('input[name=m]').forEach(r => r.onchange = () => { edit.streamers = r.value === 'all' ? null : [...C.streamers]; drawEdit(); });
+  $('list').onchange = e => {
+    if (e.target.type !== 'checkbox' || !edit.streamers) return;
+    const s = e.target.value;
+    edit.streamers = e.target.checked ? [...edit.streamers, s] : edit.streamers.filter(x => x !== s);
+    drawEdit();
+  };
+  $('list').onclick = e => {
+    const b = e.target.closest('[data-pin]'); if (!b) return;
+    e.preventDefault();
+    const s = b.dataset.pin;
+    edit.pins = edit.pins.includes(s) ? edit.pins.filter(x => x !== s) : [...edit.pins, s];
+    drawEdit();
+  };
+  if ($('allOn')) $('allOn').onclick = () => { edit.streamers = [...new Set([...edit.streamers, ...list])]; drawEdit(); };
+  if ($('allOff')) $('allOff').onclick = () => { edit.streamers = edit.streamers.filter(s => !list.includes(s)); drawEdit(); };
+  $('save').onclick = () => save(false);
+  if ($('act')) $('act').onclick = () => save(true);
+  if ($('del')) $('del').onclick = async () => {
+    if (!confirm(`„${edit.name}“ löschen?`)) return;
+    await api('/api/configs', { op: 'delete', id: edit.id });
+    edit = null; await reload(); loadConfigs();
+  };
+}
+
+async function save(activate) {
+  try {
+    if (!edit.name.trim()) throw new Error('Bitte einen Namen eingeben');
+    if (edit.streamers && !edit.streamers.length) throw new Error('Mindestens einen Streamer auswählen');
+    const j = await api('/api/configs', { op: 'save', id: edit.id, name: edit.name, streamers: edit.streamers, pins: edit.pins, activate });
+    await reload(j.id); loadConfigs();
+    $('msg').className = 'ok'; $('msg').textContent = activate ? 'Gespeichert & aktiviert ✓' : 'Gespeichert ✓';
+  } catch (e) { $('msg').className = 'err'; $('msg').textContent = e.message; }
+}
+
+reload().then(() => { if (location.hash === '#neu') $('new').click(); });
+</script>

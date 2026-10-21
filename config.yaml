@@ -16,6 +16,7 @@ clips:
   only_game_id: "27471"     # Minecraft only; "" = any game
   min_duration: 5
   min_views: 0              # clips below this are hidden everywhere (0 = show all)
+  max_age_days: 7           # older clips leave all lists, their downloads are deleted (not in Edit / exported)
   poll_minutes: 3           # live listener interval while the app runs
   poll_window_hours: 24     # re-scan window each poll: catches late-indexed clips + keeps view counts fresh
 
@@ -23,7 +24,6 @@ render:
   width: 1080
   height: 1920
   cam_height: 640           # top area; game gets the rest
-  game_center_x: 0.5        # 0..1 horizontal focus of game crop
   crf: 20
   font: "Montserrat Black"   # from assets/fonts
   font_size: 82
@@ -42,8 +42,7 @@ review:
   lan: true                 # reachable in the WiFi for the iPhone app (token from /pair required)
 
 prefetch:
-  ahead: 12                 # pinned channels (📌): fully prepare their top this many ranked clips
-  keep: 40                  # max untouched prepared clips kept on disk (oldest dropped)
+  keep: 40                  # max untouched downloaded clips kept on disk (oldest dropped; watched perspectives stay)
 
 caption:
   template: "{title} 🎮 Clip von @{streamer} (twitch.tv/{streamer})"

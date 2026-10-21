@@ -33,8 +33,8 @@ struct ClipItem: Codable, Identifiable, Hashable {
     var thumbnail: String?
     var created_at: String?
     @LooseBool var ready: Bool        // prepared (transcript done): editor can open
-    @LooseBool var downloaded: Bool   // Edit list: source video is there, watchable already
-    var parts: Int?
+    @LooseBool var downloaded: Bool   // source video is there, watchable already
+    var parts: Int?                   // clips merged into this one (several people clipped the same moment)
 
     var displayTitle: String { title ?? "" }
     var createdDate: Date? { parseDate(created_at) }
@@ -52,7 +52,24 @@ struct ClipsResponse: Codable {
     var prefetch: Prefetch?
     var pins: [String]?
     var used: [String: Int]?
-    var hidden: [String]?  // streamer filter of the page, stored on the Mac (same as the website)
+    var config: ConfigInfo?  // active configuration (which streamers For You / Discovery show)
+}
+
+// MARK: - configurations (Einstellungen): which streamers are shown, pinned channels
+
+struct ConfigInfo: Codable, Hashable { var id: String; var name: String }
+
+struct ConfigItem: Codable, Identifiable, Hashable {
+    let id: String
+    var name: String
+    var streamers: [String]?  // nil = all streamers of accounts.txt (new ones too)
+    var pins: [String]?
+}
+
+struct ConfigsResponse: Codable {
+    var active: String
+    var configs: [ConfigItem]
+    var streamers: [String]  // all
 }
 
 /// Scheduler rating of an exported clip, best first.
@@ -94,10 +111,17 @@ struct Perspective: Codable, Identifiable, Hashable {
     var title: String?
     var views: Int?
     var thumbnail: String?
+    var duration: Double?
     var from: Double
     var to: Double
     var off: Double
     @LooseBool var ready: Bool
+}
+
+/// Facecam + game frame of a layout ([x, y, w, h] of the source, see layout.py); cam nil = no facecam.
+struct Frames: Codable, Hashable {
+    var cam: [Double]?
+    var game: [Double]
 }
 
 // MARK: - editor
@@ -112,7 +136,46 @@ struct SubChunk: Codable, Hashable, Identifiable {
     var text: String { words.map(\.word).joined(separator: " ") }
 }
 
-struct Switch: Codable, Hashable { var t: Double; var clip: String?; var off: Double; var streamer: String? }
+/// Perspective switch: from main time `t` on, the other clip (nil = back to the main clip), `off` = other - main time.
+/// cam/game: frames chosen for that perspective (nil game = that streamer's default layout).
+struct Switch: Codable, Hashable {
+    var t: Double
+    var clip: String?
+    var off: Double
+    var streamer: String?
+    var cam: [Double]?
+    var game: [Double]?
+
+    enum CodingKeys: String, CodingKey { case t, clip, off, streamer, cam, game }
+    func encode(to e: Encoder) throws {
+        var c = e.container(keyedBy: CodingKeys.self)
+        try c.encode(t, forKey: .t)
+        try c.encode(clip, forKey: .clip)
+        try c.encode(off, forKey: .off)
+        try c.encodeIfPresent(streamer, forKey: .streamer)
+        if clip != nil, let game {  // own frames: explicit cam (null = no facecam)
+            try c.encode(cam, forKey: .cam)
+            try c.encode(game, forKey: .game)
+        }
+    }
+}
+
+/// Layout change during the clip (layout.py): from `t` on these frames, reached over `ease` seconds (0 = jump).
+struct Keyframe: Codable, Hashable, Identifiable {
+    var id = UUID()
+    var t: Double
+    var cam: [Double]?
+    var game: [Double]?
+    var ease: Double = 0
+    enum CodingKeys: String, CodingKey { case t, cam, game, ease }
+    func encode(to e: Encoder) throws {
+        var c = e.container(keyedBy: CodingKeys.self)
+        try c.encode(t, forKey: .t)
+        try c.encode(cam, forKey: .cam)
+        try c.encode(game, forKey: .game)
+        try c.encode(ease, forKey: .ease)
+    }
+}
 
 struct RenderDims: Codable, Hashable {
     var width: Double, height: Double, cam_height: Double, subs_y: Double, font_size: Double
@@ -128,13 +191,16 @@ struct ClipDetail: Codable {
     var overlay_title: String?
     var cam: [Double]?
     var cam_h: Double?
+    var game: [Double]?     // game frame (nil on older clips: from game_x + zoom)
     var game_x: Double?
     var zoom: Double?
+    var keyframes: [Keyframe]?
+    var segments: String?   // joined clip: layout per part (edited in the web editor)
     var trim_start: Double?
     var trim_end: Double?
     var subs: [SubChunk]?
     var switches: String?  // JSON text in the DB
-    var cuts: String?      // JSON text: ranges removed in the web editor (kept as they are)
+    var cuts: String?      // JSON text: ranges removed from the final video
     var raw_path: String?
     var out_path: String?
     var error: String?
@@ -146,8 +212,8 @@ struct Cut: Codable, Hashable { var start: Double; var end: Double }
 /// Body of POST /api/clip/<id> (autosave) and /api/clip/<id>/export, same as the web editor sends.
 struct SaveBody: Encodable {
     var cam: [Double]?
-    var game_x: Double
-    var zoom: Double
+    var game: [Double]
+    var keyframes: [Keyframe]
     var trim_start: Double
     var trim_end: Double
     var subs: [SubChunk]
@@ -157,12 +223,12 @@ struct SaveBody: Encodable {
     var switches: [Switch]
     var cuts: [Cut]
 
-    enum CodingKeys: String, CodingKey { case cam, game_x, zoom, trim_start, trim_end, subs, caption, overlay_title, cam_h, switches, cuts }
+    enum CodingKeys: String, CodingKey { case cam, game, keyframes, trim_start, trim_end, subs, caption, overlay_title, cam_h, switches, cuts }
     func encode(to e: Encoder) throws {
         var c = e.container(keyedBy: CodingKeys.self)
         try c.encode(cam, forKey: .cam)  // explicit null = no facecam
-        try c.encode(game_x, forKey: .game_x)
-        try c.encode(zoom, forKey: .zoom)
+        try c.encode(game, forKey: .game)
+        try c.encode(keyframes, forKey: .keyframes)
         try c.encode(trim_start, forKey: .trim_start)
         try c.encode(trim_end, forKey: .trim_end)
         try c.encode(subs, forKey: .subs)

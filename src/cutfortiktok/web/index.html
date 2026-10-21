@@ -1,5 +1,5 @@
 <!doctype html><html lang="de"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Post Selector</title>
+<title>Discovery</title>
 <link rel="stylesheet" href="/static/common.css">
 <style>
 a{color:inherit}
@@ -7,24 +7,20 @@ a{color:inherit}
 .ctl{display:flex;align-items:center;gap:6px;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:4px 6px 4px 10px}
 .ctl label{color:var(--mute);font-size:12px}
 .ctl input{width:58px;background:var(--panel2);border:1px solid var(--line);color:var(--fg);border-radius:7px;padding:5px 6px;font:inherit;text-align:center}
-.seg{display:flex;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:3px}
-.seg button{border:0;background:none;color:var(--mute);padding:6px 12px;border-radius:7px;font:inherit;font-weight:600;cursor:pointer}
-.seg button.on{background:var(--acc);color:#fff}
-.chips{display:flex;gap:4px}.chips button{border:1px solid var(--line);background:var(--panel2);color:var(--mute);border-radius:999px;padding:3px 9px;font:inherit;font-size:12px;cursor:pointer}
-.chips button.on{border-color:var(--acc2);color:var(--acc2)}
-.btn{background:var(--panel);border:1px solid var(--line);color:var(--fg);border-radius:10px;padding:7px 12px;font:inherit;font-weight:600;cursor:pointer}
-.btn:hover{border-color:#444}
-.ms .pan{position:absolute;z-index:30;top:calc(100% + 6px);left:0;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:8px;min-width:250px;max-height:60vh;overflow:auto;box-shadow:0 12px 40px rgba(0,0,0,.6)}
-.ms label span{margin-left:auto;color:var(--mute);font-size:12px}
-.ms .row{display:flex;gap:6px;margin-bottom:6px}.ms .row button{flex:1}
 main{padding:8px 20px 40px}
 .group{margin:18px 0 26px}
 .gh{display:flex;align-items:center;gap:10px;margin-bottom:10px}
-.av{width:30px;height:30px;border-radius:50%;display:grid;place-items:center;font-weight:800;color:#000;background:linear-gradient(135deg,var(--acc2),var(--acc))}
-.gh b{font-size:16px}.gh a.ch{text-decoration:none;cursor:pointer}.gh a.ch:hover b{color:var(--acc2)}
+.av{width:30px;height:30px;border-radius:50%;display:grid;place-items:center;font-weight:800;color:#000;background:linear-gradient(135deg,var(--acc2),var(--acc));flex:none}
+.av.big{width:56px;height:56px;font-size:24px}
+.gh b{font-size:16px}.gh a.ch{text-decoration:none;cursor:pointer;display:flex;align-items:center;gap:10px}.gh a.ch:hover b{color:var(--acc2)}
+.gh .more{color:var(--mute);font-size:12px;text-decoration:none;margin-left:auto}.gh .more:hover{color:var(--acc2)}
 .pin{background:none;border:0;cursor:pointer;font-size:15px;opacity:.3;filter:grayscale(1);padding:2px 4px}.pin.on{opacity:1;filter:none}
-.chhead{display:flex;align-items:center;gap:12px;margin:14px 0 4px}.chhead h2{margin:0;font-size:22px}
+.prof{display:flex;align-items:center;gap:14px;margin:14px 0 6px;flex-wrap:wrap}
+.prof h2{margin:0;font-size:24px}.prof .st{color:var(--mute);font-size:13px}
+.prof .ctls{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:10px 0 4px}
 select.sel{background:var(--panel);border:1px solid var(--line);color:var(--fg);border-radius:10px;padding:7px 10px;font:inherit;font-weight:600}.gh small{color:var(--mute)}
+.row{display:flex;gap:14px;overflow-x:auto;padding-bottom:6px;scroll-snap-type:x proximity}
+.row .card{flex:0 0 250px;scroll-snap-align:start}
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:14px}
 .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;overflow:hidden;display:flex;flex-direction:column;transition:transform .12s,border-color .12s}
 .card:hover{transform:translateY(-2px);border-color:#3a3a46}
@@ -34,7 +30,7 @@ select.sel{background:var(--panel);border:1px solid var(--line);color:var(--fg);
 .pill{position:absolute;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:700;background:rgba(0,0,0,.75)}
 .st{left:8px;top:8px}.dur{right:8px;bottom:8px}.rank{left:8px;bottom:8px;background:var(--acc)}
 .parts{right:8px;top:8px;background:#6e40c9}
-.st.ready{background:#6e40c9}.st.pending_review{background:#9e6a03}.st.failed{background:#da3633}.st.exporting{background:var(--ok)}
+.st.ready{background:#6e40c9}.st.pending_review{background:#9e6a03}.st.dl{background:#1f6feb}
 .body{padding:10px 12px 12px;display:flex;flex-direction:column;gap:6px;flex:1}
 .t{font-weight:650;line-height:1.3;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
 .meta{color:var(--mute);font-size:12px}
@@ -42,28 +38,22 @@ select.sel{background:var(--panel);border:1px solid var(--line);color:var(--fg);
 .act{display:flex;gap:6px;margin-top:auto}
 .act a,.act button{flex:1;text-align:center;text-decoration:none;padding:8px;border-radius:9px;font:inherit;font-weight:700;cursor:pointer;border:0}
 .edit{background:var(--acc);color:#fff}
+.watch{background:var(--acc2);color:#000;flex:0 0 40px!important}
 .ign{background:var(--panel2);color:var(--fg);border:1px solid var(--line)!important}
 .cd{color:var(--mute);font-size:12px;font-variant-numeric:tabular-nums}
 .empty{color:var(--mute);padding:40px 0;text-align:center}
+.empty a{color:var(--acc2)}
 @media (max-width:600px){.nav,.filters,main{padding-left:12px;padding-right:12px}.grid{grid-template-columns:1fr}}
 </style>
 
 <div class="top">
-  <div class="nav">
-    <div class="logo">Cut<span>ForTiktok</span></div>
-    <nav class="pages"><a href="/foryou">For You</a><a href="/edit">Edit</a><a href="/scheduler">Scheduler</a><a href="/" class="on">Post Selector</a></nav><a href="/pair" class="phone" title="iPhone-App verbinden">📱</a>
-    <span id="info"></span>
-  </div>
-  <div class="filters">
-    <details class="ms" id="whoBox"><summary id="whoSum">Alle Streamer</summary>
-      <div class="pan"><div class="row"><button class="btn" id="whoAll">Alle</button><button class="btn" id="whoNone">Keine</button></div><div id="whoList"></div></div>
-    </details>
+  <div class="nav"></div>
+  <div class="filters" id="filters">
     <div class="seg" id="mode"><button data-m="new">Neueste</button><button data-m="top">Top</button></div>
     <select class="sel" id="order" title="Reihenfolge der Kanäle"><option value="recent">Kanäle: neueste zuerst</option>
       <option value="used">Kanäle: meist genutzt</option><option value="top">Kanäle: Top-Clips</option></select>
     <div class="ctl"><label for="n">pro Kanal</label><input id="n" type="number" min="1" max="100"></div>
-    <div class="ctl" id="tBox"><label for="t">aus den letzten</label><input id="t" type="number" min="1"><label>Min</label>
-      <div class="chips" id="tChips"><button data-t="15">15</button><button data-t="60">1h</button><button data-t="180">3h</button><button data-t="360">6h</button><button data-t="1440">24h</button></div></div>
+    <div class="chips" id="ages"></div>
     <button class="btn" id="sync" title="Twitch jetzt abfragen">↻ Aktualisieren</button><span class="cd" id="cd"></span>
   </div>
 </div>
@@ -71,62 +61,29 @@ select.sel{background:var(--panel);border:1px solid var(--line);color:var(--fg);
 
 <script src="/static/common.js"></script>
 <script>
-const LABEL = { new: 'neu', pending_review: 'bearbeitet', failed: 'Fehler' };
+const LABEL = { new: 'neu', pending_review: 'bearbeitet' };
 let clips = [], seen = null, fresh = new Set(), prefetching = null, rendering = new Set();
-let streamers = [], hidden = new Set(), nextSync = 0, pins = [], used = {};
-// channel view: #@login shows only that channel's clips (all of them)
+let streamers = [], nextSync = 0, pins = [], used = {}, config = null;
+// streamer profile: #@login shows that channel's clips, more of them, in its own order + time window
 const channel = () => decodeURIComponent(location.hash.startsWith('#@') ? location.hash.slice(2) : '') || null;
 window.addEventListener('hashchange', () => { scrollTo(0, 0); draw(); });
 
-// filters survive reloads
-const PREF = 'selectorFilters';
-let F = { mode: 'new', n: 5, t: 60, order: 'recent' };
-try { const { hidden: _, ...p } = JSON.parse(localStorage.getItem(PREF) || '{}'); F = { ...F, ...p }; } catch {}
-function savePrefs() { try { localStorage.setItem(PREF, JSON.stringify(F)); } catch {} }
+// filters survive reloads (main page F, profiles P)
+let F = { mode: 'new', n: 5, age: 0, order: 'recent' }, P = { sort: 'new', age: 0 };
+try { F = { ...F, ...JSON.parse(localStorage.getItem('discovery') || '{}') }; P = { ...P, ...JSON.parse(localStorage.getItem('profile') || '{}') }; } catch {}
+function savePrefs() { try { localStorage.setItem('discovery', JSON.stringify(F)); localStorage.setItem('profile', JSON.stringify(P)); } catch {} }
 
-
-// ---------- streamer multiselect (stores the unchecked ones, so new streamers show up by default) ----------
-function drawWho() {
-  const counts = {};
-  clips.forEach(c => counts[c.streamer] = (counts[c.streamer] || 0) + 1);
-  const on = streamers.filter(s => !hidden.has(s));
-  $('whoSum').textContent = on.length === streamers.length ? 'Alle Streamer' : on.length === 0 ? 'Keine Streamer'
-    : on.length <= 2 ? on.map(s => '@' + s).join(', ') : `${on.length} von ${streamers.length} Streamern`;
-  if (!$('whoBox').open) return;
-  $('whoList').innerHTML = streamers.map(s => `<label><input type="checkbox" value="${esc(s)}" ${hidden.has(s) ? '' : 'checked'}>@${esc(s)}<span>${counts[s] || 0}</span></label>`).join('');
-}
-const changed = () => { savePrefs(); draw(); };
-$('whoList').addEventListener('change', e => {
-  if (e.target.type !== 'checkbox') return;
-  e.target.checked ? hidden.delete(e.target.value) : hidden.add(e.target.value);
-  whoChanged();
-});
-$('whoBox').addEventListener('toggle', drawWho);
-function whoChanged() { saveHidden('selector', hidden); draw(); }
-$('whoAll').onclick = () => { hidden.clear(); whoChanged(); drawWho(); };
-$('whoNone').onclick = () => { hidden = new Set(streamers); whoChanged(); drawWho(); };
-document.addEventListener('click', e => { if ($('whoBox').open && !$('whoBox').contains(e.target)) $('whoBox').open = false; });
-
-// ---------- mode / n / t ----------
 function drawFilters() {
+  $('filters').style.display = channel() ? 'none' : '';
   document.querySelectorAll('#mode button').forEach(b => b.classList.toggle('on', b.dataset.m === F.mode));
-  $('tBox').hidden = F.mode !== 'top';
-  $('tBox').style.display = F.mode === 'top' ? '' : 'none';
-  $('n').value = F.n; $('t').value = F.t; $('order').value = F.order;
-  document.querySelectorAll('#tChips button').forEach(b => b.classList.toggle('on', +b.dataset.t === +F.t));
+  $('n').value = F.n; $('order').value = F.order;
+  $('ages').innerHTML = ageChips(F.age);
 }
-document.querySelectorAll('#mode button').forEach(b => b.onclick = () => { F.mode = b.dataset.m; drawFilters(); changed(); });
-document.querySelectorAll('#tChips button').forEach(b => b.onclick = () => { F.t = +b.dataset.t; drawFilters(); changed(); });
+const changed = () => { savePrefs(); drawFilters(); draw(); };
+document.querySelectorAll('#mode button').forEach(b => b.onclick = () => { F.mode = b.dataset.m; changed(); });
+$('ages').onclick = e => { const b = e.target.closest('[data-age]'); if (b) { F.age = +b.dataset.age; changed(); } };
 $('order').onchange = () => { F.order = $('order').value; changed(); };
-$('n').oninput = () => { if (+$('n').value > 0) { F.n = +$('n').value; changed(); } };
-$('t').oninput = () => { if (+$('t').value > 0) { F.t = +$('t').value; drawFilters(); changed(); } };
-
-function ago(iso) {
-  const m = (Date.now() - new Date(iso)) / 60000;
-  if (m < 60) return Math.round(m) + ' min';
-  if (m < 1440) return Math.round(m / 60) + ' h';
-  return new Date(iso).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' }) + ' ' + new Date(iso).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
-}
+$('n').oninput = () => { if (+$('n').value > 0) { F.n = +$('n').value; savePrefs(); draw(); } };
 
 async function load() {
   const j = await (await fetch('/api/clips')).json();
@@ -135,89 +92,115 @@ async function load() {
   clips = j.clips;
   prefetching = j.prefetch?.current;
   rendering = new Set(j.rendering || []);
-  streamers = j.streamers;
+  streamers = j.streamers; config = j.config;
   nextSync = j.next_sync || 0;
-  pins = j.pins || []; used = j.used || {}; hidden = serverHidden(j, hidden);
+  pins = j.pins || []; used = j.used || {};
   draw();
 }
 
-// newest n per channel, or top n per channel by views among clips of the last t minutes
+const SORT = { new: (a, b) => new Date(b.created_at) - new Date(a.created_at), top: (a, b) => b.views - a.views };
+const inAge = (c, age) => !age || Date.now() - new Date(c.created_at) <= age * 60000;
+
+// one channel's clips in an order and time window
+const channelClips = (s, sort, age) => clips.filter(c => c.streamer === s && !rendering.has(c.id) && inAge(c, age)).sort(SORT[sort]);
+
+// main page: newest / top n per channel of the time window; pinned channels first
 function groups() {
-  const since = Date.now() - F.t * 60000;
   const by = {};
-  const ch = channel();
-  for (const c of clips) {
-    if (ch ? c.streamer !== ch : hidden.has(c.streamer)) continue;
-    if (rendering.has(c.id)) continue;
-    if (!ch && F.mode === 'top' && new Date(c.created_at).getTime() < since) continue;
-    (by[c.streamer] ||= []).push(c);
-  }
+  for (const c of clips) if (!rendering.has(c.id) && inAge(c, F.age)) (by[c.streamer] ||= []).push(c);
   return Object.entries(by).map(([s, list]) => {
-    list.sort(F.mode === 'top' ? (a, b) => b.views - a.views : (a, b) => new Date(b.created_at) - new Date(a.created_at));
-    return { streamer: s, list: ch ? list : list.slice(0, F.n), total: list.length };
+    list.sort(SORT[F.mode]);
+    return { streamer: s, list: list.slice(0, F.n), total: list.length };
   }).sort((a, b) => (pins.includes(b.streamer) - pins.includes(a.streamer)) || ORDER[F.order](a, b));
 }
-
 const maxViews = g => Math.max(...g.list.map(c => c.views));
 const ORDER = {  // channel order (pinned channels always first)
-  recent: (a, b) => F.mode === 'top' ? b.list[0].views - a.list[0].views : new Date(b.list[0].created_at) - new Date(a.list[0].created_at),
+  recent: (a, b) => SORT[F.mode](a.list[0], b.list[0]),
   used: (a, b) => (used[b.streamer] || 0) - (used[a.streamer] || 0) || maxViews(b) - maxViews(a),
   top: (a, b) => maxViews(b) - maxViews(a),
 };
 async function togglePin(s) {
   pins = pins.includes(s) ? pins.filter(x => x !== s) : [...pins, s];
   draw();
-  await fetch('/api/pins', { method: 'POST', body: JSON.stringify({ pins }) });
+  await api('/api/pins', { pins });
 }
+const pinBtn = s => `<button class="pin ${pins.includes(s) ? 'on' : ''}" title="Kanal anheften: oben, seine Clips werden im Hintergrund geladen" onclick="togglePin('${esc(s)}')">📌</button>`;
+const watchUrl = (s, sort, age, start) => `/foryou?streamer=${encodeURIComponent(s)}&sort=${sort}${age ? '&age=' + age : ''}${start ? '&start=' + start : ''}`;
 
-function card(c, rank) {
-  const st = c.status === 'new' && c.ready ? 'ready' : c.status;
-  const label = c.status === 'new' && c.ready ? 'bereit ⚡' : LABEL[c.status] || c.status;
+function card(c, rank, top, prof) {
+  const st = c.status === 'new' && c.ready ? 'ready' : c.status === 'new' && c.downloaded ? 'dl' : c.status;
+  const label = c.status === 'new' && c.ready ? 'bereit ⚡' : c.status === 'new' && c.downloaded ? 'geladen' : LABEL[c.status] || c.status;
   return `<div class="card ${fresh.has(c.id) ? 'fresh' : ''}" id="c-${c.id}">
-    <a class="thumb" href="/edit/${c.id}">${c.thumbnail ? `<img loading="lazy" src="${esc(c.thumbnail)}">` : ''}
+    <a class="thumb" href="${prof ? watchUrl(c.streamer, P.sort, P.age, c.id) : '/edit/' + c.id}">${c.thumbnail ? `<img loading="lazy" src="${esc(c.thumbnail)}">` : ''}
       <span class="pill st ${st}">${label}</span>
       ${c.parts > 1 ? `<span class="pill parts" title="Überlappende Clips zu einem zusammengefügt">🔗 ${c.parts} Clips</span>` : ''}
-      ${F.mode === 'top' ? `<span class="pill rank">#${rank}</span>` : ''}
+      ${top ? `<span class="pill rank">#${rank}</span>` : ''}
       <span class="pill dur">${Math.round(c.duration || 0)}s</span></a>
     <div class="body"><div class="t">${esc(c.title)}</div>
       <div class="meta">${c.views} Views · ${ago(c.created_at)}</div>
       ${c.error ? `<div class="err">${esc(c.error)}</div>` : ''}
-      <div class="act"><a class="edit" href="/edit/${c.id}">Bearbeiten</a><button class="ign" onclick="ignore('${c.id}')">Ignorieren</button></div>
+      <div class="act"><a class="watch" href="${watchUrl(c.streamer, prof ? P.sort : F.mode, prof ? P.age : F.age, c.id)}" title="Im For-You-Stil ansehen">▶</a>
+        <a class="edit" href="/edit/${c.id}">Bearbeiten</a><button class="ign" onclick="ignore('${c.id}')">Ignorieren</button></div>
     </div></div>`;
 }
 
 function draw() {
-  drawWho();
+  drawFilters();
+  const ch = channel();
+  if (ch) return drawProfile(ch);
   const gs = groups();
   // round robin over channels: "next clip" in the editor follows the top of every channel first
   const order = [];
-  const ch = channel();
-  for (let i = 0; i < (ch ? Infinity : F.n) && gs.some(g => g.list[i]); i++) for (const g of gs) if (g.list[i]) order.push(g.list[i]);
-  const n = order.length;
-  $('info').textContent = `${n} Clips aus ${gs.length} Kanälen` + (fresh.size ? ` · ${fresh.size} neu` : '')
-    + (rendering.size ? ` · ${rendering.size} exportiert gerade` : '')
-    + (prefetching ? ' · bereite vor: ' + (clips.find(c => c.id === prefetching)?.title || '…') : '');
+  for (let i = 0; i < F.n && gs.some(g => g.list[i]); i++) for (const g of gs) if (g.list[i]) order.push(g.list[i]);
   try { localStorage.setItem('clipOrder', JSON.stringify(order.map(c => c.id))); } catch {}
-  const pinBtn = s => `<button class="pin ${pins.includes(s) ? 'on' : ''}" title="Kanal oben anheften" onclick="togglePin('${esc(s)}')">📌</button>`;
-  const head = ch ? `<div class="chhead"><a class="btn" href="#" style="text-decoration:none">← Alle Kanäle</a>
-      <div class="av">${esc(ch[0].toUpperCase())}</div><h2>@${esc(ch)}</h2>${pinBtn(ch)}
-      <small style="color:var(--mute)">${used[ch] || 0}× genutzt · <a href="https://twitch.tv/${esc(ch)}" target="_blank" style="color:var(--mute)">twitch.tv/${esc(ch)}</a></small></div>` : '';
-  $('main').innerHTML = head + gs.map(g => `<section class="group">
-      <div class="gh">${ch ? '' : `<a class="ch" href="#@${esc(g.streamer)}" style="display:flex;align-items:center;gap:10px" title="Nur Clips von @${esc(g.streamer)}">
-        <div class="av">${esc(g.streamer[0].toUpperCase())}</div><b>@${esc(g.streamer)}</b></a>${pinBtn(g.streamer)}`}
-        <small>${ch ? `${g.total} Clips` : F.mode === 'top' ? `Top ${g.list.length} von ${g.total} der letzten ${F.t} Min` : `${g.list.length} neueste von ${g.total}`}${!ch && used[g.streamer] ? ` · ${used[g.streamer]}× genutzt` : ''}</small></div>
-      <div class="grid">${g.list.map((c, i) => card(c, i + 1)).join('')}</div></section>`).join('')
-    || `<div class="empty">${F.mode === 'top' ? `Keine Clips in den letzten ${F.t} Minuten.` : 'Keine Clips. Der Listener lädt beim Start alle Clips seit dem eingestellten Datum, das kann kurz dauern.'}</div>`;
+  // background downloads: only the shown clips of pinned channels, in this order
+  setFocus('discovery', order.filter(c => pins.includes(c.streamer)).map(c => c.id));
+  info(order.length, gs.length);
+  $('main').innerHTML = gs.map(g => `<section class="group">
+      <div class="gh"><a class="ch" href="#@${esc(g.streamer)}" title="Profil von @${esc(g.streamer)}">
+        <div class="av">${esc(g.streamer[0].toUpperCase())}</div><b>@${esc(g.streamer)}</b></a>${pinBtn(g.streamer)}
+        <small>${F.mode === 'top' ? `Top ${g.list.length}` : `${g.list.length} neueste`} von ${g.total}${used[g.streamer] ? ` · ${used[g.streamer]}× genutzt` : ''}</small>
+        <a class="more" href="#@${esc(g.streamer)}">Alle ${g.total} →</a></div>
+      <div class="row">${g.list.map((c, i) => card(c, i + 1, F.mode === 'top')).join('')}</div></section>`).join('')
+    || `<div class="empty">${clips.length ? 'Keine Clips in diesem Zeitraum.' : `Keine Clips${config ? ` für „${esc(config.name)}“` : ''}. Der Listener lädt beim Start alle Clips der letzten Tage, das kann kurz dauern. Streamer wählen: <a href="/settings">Einstellungen</a>.`}</div>`;
+}
+
+function drawProfile(s) {
+  const all = clips.filter(c => c.streamer === s);
+  const list = channelClips(s, P.sort, P.age);
+  try { localStorage.setItem('clipOrder', JSON.stringify(list.map(c => c.id))); } catch {}
+  setFocus('profile', list.map(c => c.id));  // the next clips in this order get downloaded
+  info(list.length, 1);
+  const views = all.reduce((n, c) => n + (c.views || 0), 0);
+  $('main').innerHTML = `<div class="prof"><a class="btn" href="#">← Discovery</a>
+      <div class="av big">${esc(s[0].toUpperCase())}</div>
+      <div><h2>@${esc(s)} ${pinBtn(s)}</h2>
+        <div class="st">${all.length} Clips · ${views.toLocaleString('de-DE')} Views · ${used[s] || 0}× genutzt ·
+          <a href="https://twitch.tv/${esc(s)}" target="_blank">twitch.tv/${esc(s)}</a></div></div></div>
+    <div class="prof ctls">
+      <div class="seg" id="psort"><button data-s="new" class="${P.sort === 'new' ? 'on' : ''}">Neueste</button><button data-s="top" class="${P.sort === 'top' ? 'on' : ''}">Top</button></div>
+      <div class="chips" id="page">${ageChips(P.age)}</div>
+      <a class="btn pri" href="${watchUrl(s, P.sort, P.age)}">▶ Im For-You-Stil ansehen</a></div>
+    <div class="grid">${list.map((c, i) => card(c, i + 1, P.sort === 'top', true)).join('')}</div>
+    ${list.length ? '' : '<div class="empty">Keine Clips in diesem Zeitraum.</div>'}`;
+  $('psort').onclick = e => { const b = e.target.closest('[data-s]'); if (b) { P.sort = b.dataset.s; savePrefs(); draw(); } };
+  $('page').onclick = e => { const b = e.target.closest('[data-age]'); if (b) { P.age = +b.dataset.age; savePrefs(); draw(); } };
+}
+
+function info(n, channels) {
+  $('info').textContent = `${n} Clips${channels > 1 ? ` aus ${channels} Kanälen` : ''}` + (fresh.size ? ` · ${fresh.size} neu` : '')
+    + (rendering.size ? ` · ${rendering.size} exportiert gerade` : '')
+    + (prefetching ? ' · lädt: ' + (clips.find(c => c.id === prefetching)?.title || '…') : '');
 }
 
 async function ignore(id) {
-  const r = await fetch(`/api/clip/${id}/status`, { method: 'POST', body: JSON.stringify({ status: 'ignored' }) });
-  if (r.ok) { clips = clips.filter(c => c.id !== id); fresh.delete(id); draw(); }
+  await setStatus(id, 'ignored').catch(() => {});
+  clips = clips.filter(c => c.id !== id); fresh.delete(id); draw();
 }
 
 $('sync').onclick = async () => {
   $('sync').disabled = true; $('sync').textContent = '↻ Lädt…';
-  try { await fetch('/api/sync', { method: 'POST', body: '{}' }); await load(); }
+  try { await api('/api/sync'); await load(); }
   finally { $('sync').disabled = false; $('sync').textContent = '↻ Aktualisieren'; }
 };
 // countdown to the listener's next automatic scan
@@ -225,7 +208,6 @@ setInterval(() => {
   const s = Math.round(nextSync - Date.now() / 1000);
   $('cd').textContent = !nextSync ? '' : s > 0 ? `nächster Scan in ${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}` : 'Scan läuft…';
 }, 1000);
-drawFilters();
 load();
 setInterval(() => { if (!document.hidden) load(); }, 15000);  // live: listener adds clips in background
 </script>

@@ -2,11 +2,9 @@
 <title>For You</title>
 <link rel="stylesheet" href="/static/common.css">
 <style>
-.age{display:flex;gap:3px;flex-wrap:wrap}.age button{border:1px solid var(--line);background:var(--panel);color:var(--mute);border-radius:999px;padding:4px 9px;font:inherit;font-size:12px;font-weight:600;cursor:pointer}
-.age button.on{border-color:var(--acc2);color:var(--acc2)}
-.ms .pan{position:absolute;z-index:30;top:calc(100% + 6px);right:0;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:8px;min-width:250px;max-height:60vh;overflow:auto;box-shadow:0 12px 40px rgba(0,0,0,.6)}
-.ms .row{display:flex;gap:6px;margin-bottom:6px}
-.btn{background:var(--panel2);border:1px solid var(--line);color:var(--fg);border-radius:10px;padding:7px 12px;font:inherit;font-weight:700;cursor:pointer}
+.bar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;padding:0 20px 12px}
+.bar h2{margin:0;font-size:18px}
+.navbtn{display:flex;gap:6px}.navbtn button{flex:1}
 main{max-width:1200px;margin:0 auto;padding:20px;display:grid;grid-template-columns:minmax(0,1fr) 260px;gap:24px}
 .stage{display:flex;flex-direction:column;gap:14px}
 .player{position:relative;aspect-ratio:16/9;background:#000;border-radius:16px;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.5)}
@@ -45,15 +43,10 @@ aside h3{font-size:13px;color:var(--mute);text-transform:uppercase;letter-spacin
 @media (max-width:900px){main{grid-template-columns:1fr}aside{display:none}}
 </style>
 
-<div class="top"><div class="nav">
-  <div class="logo">Cut<span>ForTiktok</span></div>
-  <nav class="pages"><a href="/foryou" class="on">For You</a><a href="/edit">Edit</a><a href="/scheduler">Scheduler</a><a href="/">Post Selector</a></nav><a href="/pair" class="phone" title="iPhone-App verbinden">📱</a>
-  <span id="info"></span>
-  <div class="age" id="age"></div>
-  <details class="ms" id="whoBox"><summary id="whoSum">Alle Streamer</summary>
-    <div class="pan"><div class="row"><button class="btn" id="whoAll">Alle</button><button class="btn" id="whoNone">Keine</button></div><div id="whoList"></div></div>
-  </details>
-</div></div>
+<div class="top"><div class="nav"></div>
+  <div class="bar"><span id="who"></span>
+    <div class="seg" id="sort"></div><div class="chips" id="age"></div></div>
+</div>
 
 <main>
   <section class="stage" id="stage"></section>
@@ -65,56 +58,67 @@ aside h3{font-size:13px;color:var(--mute);text-transform:uppercase;letter-spacin
 
 <script src="/static/common.js"></script>
 <script>
-let feed = [], streamers = [], cur = null, decided = new Set(), undo = [], kept = 0, ignored = 0, nextSync = 0;
-let hidden = new Set();  // from the server (shared with the iPhone app)
+// For You: all streamers of the active configuration, ranked (or newest / top first);
+// ?streamer=login: that streamer's profile "For You style", ?start=id opens that clip first
+const Q = new URLSearchParams(location.search);
+const streamer = Q.get('streamer');
+let feed = [], idx = 0, cur = null, decided = new Set(), undo = [], kept = 0, ignored = 0, nextSync = 0, startId = Q.get('start');
+const PREF = streamer ? 'profile' : 'foryou';
+let sort = Q.get('sort') || (streamer ? 'new' : 'rank'), age = Q.has('age') ? +Q.get('age') : 0;
+if (!Q.has('sort') && !streamer) try { const p = JSON.parse(localStorage.getItem(PREF) || '{}'); sort = p.sort || sort; age = p.age ?? age; } catch {}
+const SORTS = streamer ? [['new', 'Neueste'], ['top', 'Top']] : [['rank', 'Für dich'], ['new', 'Neueste'], ['top', 'Top']];
 
-function ago(iso) {
-  const m = (Date.now() - new Date(iso)) / 60000;
-  if (m < 60) return Math.round(m) + ' min';
-  if (m < 1440) return Math.round(m / 60) + ' h';
-  return Math.round(m / 1440) + ' Tg';
+function drawBar() {
+  $('who').innerHTML = streamer ? `<a class="btn" href="/#@${encodeURIComponent(streamer)}">← Profil</a> <h2 style="display:inline">@${esc(streamer)}</h2>` : '';
+  $('sort').innerHTML = SORTS.map(([k, l]) => `<button data-s="${k}" class="${k === sort ? 'on' : ''}">${l}</button>`).join('');
+  $('age').innerHTML = ageChips(age);
 }
-
-// time filter: only clips of the last n minutes (0 = all)
-const AGES = [[0, 'Alle'], [15, '15 Min'], [60, '1 h'], [180, '3 h'], [360, '6 h'], [720, '12 h'], [1440, '24 h'], [2880, '2 Tage'], [4320, '3 Tage'], [10080, '7 Tage']];
-let age = 0;
-try { age = +localStorage.getItem('foryouAge') || 0; } catch {}
-function drawAge() {
-  $('age').innerHTML = AGES.map(([m, l]) => `<button data-age="${m}" class="${m === age ? 'on' : ''}">${l}</button>`).join('');
+function prefsChanged() {
+  if (!streamer) try { localStorage.setItem(PREF, JSON.stringify({ sort, age })); } catch {}
+  const u = new URL(location); u.searchParams.set('sort', sort); age ? u.searchParams.set('age', age) : u.searchParams.delete('age'); u.searchParams.delete('start');
+  history.replaceState(null, '', u);
+  drawBar(); cur = null; idx = 0; load();
 }
-$('age').addEventListener('click', e => {
-  const b = e.target.closest('[data-age]'); if (!b) return;
-  age = +b.dataset.age; try { localStorage.setItem('foryouAge', age); } catch {}
-  drawAge(); cur = null; load();
-});
-drawAge();
+$('sort').onclick = e => { const b = e.target.closest('[data-s]'); if (b) { sort = b.dataset.s; prefsChanged(); } };
+$('age').onclick = e => { const b = e.target.closest('[data-age]'); if (b) { age = +b.dataset.age; prefsChanged(); } };
+drawBar();
 
 async function load() {
-  const j = await (await fetch('/api/foryou' + (age ? '?age=' + age : ''))).json();
+  const q = new URLSearchParams({ sort, skip: idx });
+  if (age) q.set('age', age);
+  if (streamer) q.set('streamer', streamer);
+  const j = await (await fetch('/api/foryou?' + q)).json();
   feed = j.clips.filter(c => !decided.has(c.id));
-  hidden = serverHidden(j, hidden);
-  streamers = j.streamers; nextSync = j.next_sync || 0;
-  // keep the clip on screen until decided; just refresh its data (e.g. download finished)
-  const same = cur && feed.find(c => c.id === cur.id);
-  if (same) { const wasReady = cur.ready; cur = same; if (!wasReady && cur.ready) drawStage(); }
-  else { cur = feed[0] || null; drawStage(); }
-  drawSide(); drawWho();
+  nextSync = j.next_sync || 0;
+  if (startId) { const k = feed.findIndex(c => c.id === startId); if (k >= 0) idx = k; startId = null; }
+  // keep the clip on screen until decided / skipped; just refresh its data (e.g. download finished)
+  const k = cur ? feed.findIndex(c => c.id === cur.id) : -1;
+  if (k >= 0) { idx = k; const wasReady = cur.ready; cur = feed[k]; if (!wasReady && cur.ready) drawStage(); }
+  else { idx = Math.min(idx, Math.max(0, feed.length - 1)); cur = feed[idx] || null; drawStage(); }
+  drawSide();
 }
-
+function step(d) {  // browse without deciding (↑ / ↓)
+  const n = idx + d;
+  if (n < 0 || n >= feed.length) return;
+  idx = n; cur = feed[idx]; drawStage(); drawSide(); load();
+}
 function drawStage() {
-  if (!cur) { $('stage').innerHTML = '<div class="empty">🎉 Alles gesichtet.<br>Neue Clips kommen mit dem nächsten Scan.</div>'; return; }
+  if (!cur) { $('stage').innerHTML = `<div class="empty">🎉 ${age ? 'Keine offenen Clips in diesem Zeitraum.' : 'Alles gesichtet.'}<br>Neue Clips kommen mit dem nächsten Scan.</div>`; return; }
   const c = cur;
   $('stage').innerHTML = `
     <div class="player">${c.ready
       ? `<video id="vid" src="/raw/${c.id}" autoplay controls playsinline></video>`
       : `<img src="${esc(c.thumbnail || '')}"><div class="wait"><div class="spin"></div>wird geladen…</div>`}</div>
     <div><div class="title">${esc(c.title)}</div>
-      <div class="meta">@${esc(c.streamer)} <button class="excl" id="excl" title="@${esc(c.streamer)} in For You und Post Selector ausblenden (Streamer-Filter)">🚫 ignorieren</button> · ${c.views} Views · vor ${ago(c.created_at)} · ${Math.round(c.duration)}s
+      <div class="meta"><a href="/#@${esc(c.streamer)}" style="color:inherit">@${esc(c.streamer)}</a> ${streamer ? '' : `<button class="excl" id="excl" title="@${esc(c.streamer)} aus der Konfiguration nehmen">🚫 ausblenden</button>`}
+        · ${c.views} Views · vor ${ago(c.created_at)} · ${Math.round(c.duration)}s
         ${c.parts > 1 ? `<span class="pill parts">🔗 ${c.parts} Clips zusammengefügt</span>` : ''}</div></div>
     ${c.error ? `<div style="color:#f85149">${esc(c.error)}</div>` : ''}
     <div class="persp" id="persp"></div>
     <div class="decide"><button class="no" id="no">✕ Ignorieren</button><button class="yes" id="yes">✓ Behalten</button></div>
-    <div class="keys"><kbd>←</kbd> ignorieren · <kbd>→</kbd> behalten · <kbd>Leertaste</kbd> Pause · <kbd>Z</kbd> rückgängig</div>`;
+    <div class="navbtn"><button class="btn" id="prevBtn" ${idx ? '' : 'disabled'}>↑ Vorheriger</button><button class="btn" id="nextBtn" ${idx < feed.length - 1 ? '' : 'disabled'}>Nächster ↓</button></div>
+    <div class="keys"><kbd>←</kbd> ignorieren · <kbd>→</kbd> behalten · <kbd>↑</kbd><kbd>↓</kbd> blättern · <kbd>Leertaste</kbd> Pause · <kbd>Z</kbd> rückgängig</div>`;
+  $("prevBtn").onclick = () => step(-1); $("nextBtn").onclick = () => step(1);
   $('no').onclick = () => decide('ignored');
   $('yes').onclick = () => decide('kept');
   const v = $('vid');
@@ -162,11 +166,12 @@ async function switchTo(p, btn) {
 }
 
 function drawSide() {
-  const up = feed.filter(c => c.id !== cur?.id).slice(0, 6);
+  const up = feed.slice(idx + 1, idx + 7);
   $('next').innerHTML = up.map(c => `<div class="up"><img src="${esc(c.thumbnail || '')}">
     <div><div class="t">${esc(c.title)}</div><div class="m"><span class="dot ${c.ready ? 'ok' : ''}"></span>@${esc(c.streamer)} · ${c.views}</div></div></div>`).join('')
     || '<div class="m" style="color:var(--mute)">—</div>';
-  $('stats').innerHTML = `Diese Sitzung: <b>${kept}</b> behalten · <b>${ignored}</b> ignoriert<br>${feed.length} Clips im Feed`;
+  $('stats').innerHTML = `Diese Sitzung: <b>${kept}</b> behalten · <b>${ignored}</b> ignoriert<br>Clip ${feed.length ? idx + 1 : 0} von ${feed.length}`
+    + (sort === 'rank' && cur?.why ? `<br><span title="Ranking: Views, Aktualität, zusammengefügte Clips">Views ${cur.why.views} · frisch ${cur.why.fresh} · 🔗 ${cur.why.same_moment}</span>` : '');
 }
 
 async function decide(status) {
@@ -175,10 +180,11 @@ async function decide(status) {
   decided.add(c.id);
   undo.push(c);
   status === 'kept' ? kept++ : ignored++;
-  cur = feed.filter(x => !decided.has(x.id))[0] || null;
+  feed = feed.filter(x => !decided.has(x.id));
+  cur = feed[Math.min(idx, feed.length - 1)] || null;
   drawStage(); drawSide();
   await fetch(`/api/clip/${c.id}/status`, { method: 'POST', body: JSON.stringify({ status }) });
-  load();  // re-rank: your decision changes the channel's weight
+  load();
 }
 
 async function undoLast() {
@@ -196,32 +202,20 @@ document.addEventListener('keydown', e => {
   if (e.target.matches('input,textarea')) return;
   if (e.key === 'ArrowRight') { e.preventDefault(); decide('kept'); }
   else if (e.key === 'ArrowLeft') { e.preventDefault(); decide('ignored'); }
+  else if (e.key === 'ArrowDown') { e.preventDefault(); step(1); }
+  else if (e.key === 'ArrowUp') { e.preventDefault(); step(-1); }
   else if (e.key === 'z' || e.key === 'Z') undoLast();
   else if (e.key === ' ') { const v = $('vid'); if (v) { e.preventDefault(); v.paused ? v.play() : v.pause(); } }
 });
 
-// "ignorieren" next to the streamer name: out of the filter of For You + Post Selector
+// "ausblenden" next to the streamer name: out of the active configuration
 document.addEventListener('click', async e => {
   if (e.target.id !== 'excl' || !cur) return;
   const s = cur.streamer;
-  if (!confirm(`@${s} ausblenden? (in For You und Post Selector, im Streamer-Filter wieder einschaltbar)`)) return;
+  if (!confirm(`@${s} aus der aktiven Konfiguration nehmen? (in den Einstellungen wieder einschaltbar)`)) return;
   await api('/api/filters/exclude', { streamer: s });
-  hidden.add(s); drawWho(); cur = null; load();
+  cur = null; load(); loadConfigs();
 });
-
-// streamer filter
-function drawWho() {
-  const on = streamers.filter(s => !hidden.has(s));
-  $('whoSum').textContent = on.length === streamers.length ? 'Alle Streamer' : `${on.length} von ${streamers.length} Streamern`;
-  if (!$('whoBox').open) return;
-  $('whoList').innerHTML = streamers.map(s => `<label><input type="checkbox" value="${esc(s)}" ${hidden.has(s) ? '' : 'checked'}>@${esc(s)}</label>`).join('');
-}
-async function whoChanged() { await saveHidden('foryou', hidden); cur = null; load(); }
-$('whoList').addEventListener('change', e => { e.target.checked ? hidden.delete(e.target.value) : hidden.add(e.target.value); whoChanged(); });
-$('whoBox').addEventListener('toggle', drawWho);
-$('whoAll').onclick = () => { hidden.clear(); whoChanged(); drawWho(); };
-$('whoNone').onclick = () => { hidden = new Set(streamers); whoChanged(); drawWho(); };
-document.addEventListener('click', e => { if ($('whoBox').open && !$('whoBox').contains(e.target)) $('whoBox').open = false; });
 
 setInterval(() => {
   const s = Math.round(nextSync - Date.now() / 1000);

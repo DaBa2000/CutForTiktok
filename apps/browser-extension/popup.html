@@ -17,10 +17,11 @@ button{font:inherit;border:0;border-radius:6px;padding:6px 9px;cursor:pointer;fo
 .msg{padding:14px;color:var(--mute);text-align:center}.err{color:#f85149}
 .pl{color:#25a8a4;font-weight:600}
 .saved{display:inline-block;margin-top:5px;padding:3px 8px;border-radius:6px;background:#25a8a4;color:#fff;font-weight:700;font-size:12px}
-.plan{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px}.planerr{flex-basis:100%;white-space:normal}.plan[hidden]{display:none}
+.plan{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px}.planerr{flex-basis:100%;white-space:normal}.plan[hidden],[hidden]{display:none}
 .plan input{flex:1;min-width:0;font:inherit;padding:4px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--fg)}
 </style>
 <header><h1>Clips zum Posten</h1><button class="done" id="reload">↻</button></header>
+<div id="bgwarn" class="msg err" hidden>Hintergrundskript antwortet nicht – Einfügen/Planen geht gerade nicht.<br><button class="go" id="restart">Extension neu starten</button></div>
 <div id="list"><div class="msg">Lade…</div></div>
 <footer style="border-top:1px solid var(--line);padding:8px 14px;display:flex;gap:6px;align-items:center;flex-wrap:wrap">
   <button class="done" id="test">Verbindung testen</button>

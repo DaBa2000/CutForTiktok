@@ -41,11 +41,34 @@ function planInfo(s) {
   return `<div class="saved">✓ Geplant: ${esc(fmtBerlin(s.at))}</div>${s.error ? `<div class="m">${esc(s.error)}</div>` : ''}`;
 }
 
+// list + plans come straight from the app, so the popup works even when Safari's background script hangs
+const SERVER = 'http://localhost:8080';
+async function getJSON(path) {
+  const r = await fetch(SERVER + path, { signal: AbortSignal.timeout(5000) });
+  if (!r.ok) throw new Error('Server: ' + r.status);
+  return r.json();
+}
+
+// Safari sometimes leaves the background script dead (popup stuck on "…", buttons do nothing).
+// Check it quickly; if it doesn't answer, restart the extension once automatically.
+const RESTART_KEY = 'bgRestart';
+async function checkBackground() {
+  try { await send({ type: 'ping' }, 3000); localStorage.removeItem(RESTART_KEY); return true; }
+  catch {
+    const last = +localStorage.getItem(RESTART_KEY) || 0;
+    if (Date.now() - last > 60000) { localStorage.setItem(RESTART_KEY, Date.now()); api.runtime.reload(); }
+    $('bgwarn').hidden = false;
+    return false;
+  }
+}
+
 async function load() {
   $('list').innerHTML = '<div class="msg">Lade…</div>';
   let clips, plans = {};
-  try { plans = await send({ type: 'schedules' }); } catch {}
-  try { clips = await send({ type: 'queue' }); }
+  checkBackground();
+  send({ type: 'schedules' }, 5000).catch(() => {});  // lets the background recreate alarms / tick
+  try { plans = (await getJSON('/api/schedules')) || {}; } catch {}
+  try { clips = await getJSON('/api/queue'); }
   catch (e) {
     $('list').innerHTML = `<div class="msg err">CutForTiktok-App nicht erreichbar.<br>Starte <b>uv run cutfortiktok review</b>.<br><small>${esc(e.message)}</small></div>`;
     return;
@@ -98,6 +121,7 @@ async function load() {
   });
 }
 $('reload').onclick = load;
+$('restart').onclick = () => { localStorage.setItem(RESTART_KEY, Date.now()); api.runtime.reload(); };
 api.runtime.onMessage.addListener(msg => { if (msg.type === 'progress') log('· ' + msg.text); });
 $('test').onclick = async () => {
   $('log').textContent = ''; $('log').style.color = '';

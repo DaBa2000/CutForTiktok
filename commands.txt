@@ -1,0 +1,32 @@
+CutForTiktok – commands (run from the repo root unless noted)
+
+# Setup (once)
+uv sync
+
+# Server + web GUI (http://localhost:8080) + live clip listener
+uv run cutfortiktok review
+
+# Web GUI pages
+open http://localhost:8080            # Post Selector
+open http://localhost:8080/foryou     # For You
+open http://localhost:8080/edit       # Edit
+open http://localhost:8080/scheduler  # Scheduler
+open http://localhost:8080/pair       # iPhone pairing QR code
+
+# Other CLI commands
+uv run cutfortiktok sync              # sync Twitch clips
+uv run cutfortiktok sync --full       # full sync
+uv run cutfortiktok status
+uv run cutfortiktok discover
+uv run cutfortiktok add-local <video>
+
+# Safari extension (TikTok helper): build + install to /Applications
+cd apps/browser-extension && ./build-safari.sh
+
+# Selenium poster (manual fallback, server must be running)
+cd apps/selenium-poster && uv run poster            # pick clips from list
+cd apps/selenium-poster && uv run poster <clip-id>
+cd apps/selenium-poster && uv run poster --dry-run  # fill in, don't post
+
+# iPhone app
+open apps/ios/Clipper.xcodeproj       # then select iPhone and Run in Xcode

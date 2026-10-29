@@ -5,6 +5,10 @@ const UPLOAD_URL = 'https://www.tiktok.com/tiktokstudio/upload';
 const CHUNK = 1024 * 1024;
 const cache = new Map();  // video url -> Uint8Array (fallback transfer to content script)
 
+// no request may hang forever: a stuck fetch would block the schedule queue and every popup message
+const rawFetch = globalThis.fetch.bind(globalThis);
+const fetch = (url, opts = {}) => rawFetch(url, { signal: AbortSignal.timeout(10000), ...opts });
+
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 // step log for the popup (shows where "Einfügen" is, instead of an endless "…")
 const progress = text => api.runtime.sendMessage({ type: 'progress', text }).catch(() => {});

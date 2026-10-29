@@ -19,5 +19,10 @@ xcodebuild -scheme "TikTok Clip Poster" -configuration Release -derivedDataPath 
   CODE_SIGN_IDENTITY="-" CODE_SIGNING_REQUIRED=NO build | tail -3
 APP=$(find build -name "TikTok Clip Poster.app" -maxdepth 5 | head -1)
 rm -rf "/Applications/TikTok Clip Poster.app" && cp -R "$APP" /Applications/
+# only the /Applications copy may stay registered: a second copy with the same id (build folder) makes
+# Safari show the extension as "no longer valid"
+pluginkit -r "$APP/Contents/PlugIns/TikTok Clip Poster Extension.appex" 2>/dev/null || true
+rm -rf build
+pluginkit -a "/Applications/TikTok Clip Poster.app/Contents/PlugIns/TikTok Clip Poster Extension.appex"
 open "/Applications/TikTok Clip Poster.app"
 echo "Fertig. Jetzt in Safari aktivieren (siehe README)."
